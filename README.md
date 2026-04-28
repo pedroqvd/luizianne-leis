@@ -36,9 +36,11 @@ Serviços (módulos NestJS independentes; mesmo deployment hoje):
 
 ## Stack
 
-Backend: Node.js 20, NestJS 10, PostgreSQL 16, Redis 7, BullMQ, axios.
+Backend: Node.js 22, NestJS 10, PostgreSQL 16, Redis 7, BullMQ, axios.
 Frontend: Next.js 14 (App Router), React 18, Tailwind CSS, Recharts, SVG nativo para grafo.
-Infra: Docker Compose, GitHub Actions (CI), pronto para Vercel (web) + Railway/Fly (api/db/redis).
+Infra (dev): Docker Compose. Infra (prod, 100% gratuita):
+**Vercel** (web) + **Render** (api) + **Supabase** (Postgres) + **Upstash** (Redis).
+Passo-a-passo em [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 
 ## Subindo localmente
 

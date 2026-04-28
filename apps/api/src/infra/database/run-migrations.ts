@@ -3,7 +3,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 async function main() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const url = process.env.DATABASE_URL;
+  const needsSsl = !!url && /supabase|amazonaws|render|neon|aiven|cockroachlabs|cloudsql/i.test(url);
+  const pool = new Pool({
+    connectionString: url,
+    ssl: needsSsl ? { rejectUnauthorized: false } : false,
+  });
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -19,8 +19,11 @@ export class IngestionQueue implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly ingestion: IngestionService) {}
 
   onModuleInit() {
-    this.connection = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
+    const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
+    const isTls = url.startsWith('rediss://');
+    this.connection = new IORedis(url, {
       maxRetriesPerRequest: null,
+      ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     });
     this.queue = new Queue(QUEUE_NAME, { connection: this.connection });
     this.worker = new Worker(
