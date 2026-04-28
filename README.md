@@ -76,8 +76,13 @@ Swagger: http://localhost:8000/docs
 | GET    | `/api/analytics/productivity`         | Ranking de produtividade |
 | GET    | `/api/analytics/approval`             | Distribuição de status |
 | GET    | `/api/analytics/network`              | Grafo de coautoria |
+| GET    | `/api/analytics/categories`           | Distribuição por área temática (NLP) |
+| GET    | `/api/commissions`                    | Lista de comissões |
+| GET    | `/api/commissions/deputy/:id`         | Comissões de um deputado |
 | GET    | `/api/notifications`                  | Últimos eventos |
 | GET    | `/api/notifications/stream`           | Eventos em tempo real (SSE) |
+| POST   | `/api/admin/ingest`                   | Trigger manual de ingestão (header `x-admin-token`) |
+| POST   | `/api/admin/reclassify?force=true`    | Reclassifica todas as proposições (NLP) |
 
 ## Eventos de domínio
 
@@ -96,16 +101,23 @@ Histórico imutável: `proceedings`, `proposition_versions`, `system_events`. Í
 `CacheService` (Redis) com `wrap()` para memoização e `invalidate()` por padrão;
 TTLs por endpoint. Throttling global com `@nestjs/throttler` (120 req/min default).
 
-## Diferenciais já preparados
+## Diferenciais já implementados
 
 - **Diff-based ingestion** (snapshots versionados por hash → idempotente).
 - **Rede de coautoria** com view SQL `v_coauthorship_edges` e renderização SVG.
 - **Timeline de tramitação** imutável.
+- **Classificação por NLP** (`ClassifierService`, `apps/api/src/modules/nlp`):
+  classificador heurístico léxico em 9 categorias temáticas (saúde, educação,
+  segurança, economia, direitos, ambiente, habitação, cultura, infraestrutura),
+  com persistência em `proposition_categories` e contrato pronto para trocar pelo
+  modelo ML que preferir (transformer, spaCy, OpenAI…) sem migração.
+- **Real-time UI**: o frontend escuta o SSE em `/api/notifications/stream` via
+  `RealtimeBadge` e mostra toasts dos eventos `NEW_PROPOSITION`, `STATUS_CHANGED`,
+  `NEW_VOTE`, `NEW_RAPPORTEUR`.
+- **Trigger manual** de ingestão / reclassificação via `/api/admin/*` com token.
 - **Multi-deputado**: o schema é genérico; basta alterar `TARGET_DEPUTY_EXTERNAL_ID`
   ou expandir `DeputyService` para múltiplos alvos.
-- **Slot para classificação por NLP**: campo `keywords` + `payload JSONB` em
-  `propositions` permite plugar pipeline de classificação (ex.: spaCy/Transformers)
-  sem migração.
+- **Rate limiting** ativo (Throttler global, 120 req/min default).
 
 ## Estrutura
 

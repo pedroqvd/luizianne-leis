@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
 import { CacheService } from '../../infra/cache/cache.service';
 import { DeputyService } from '../core/services/deputy.service';
+import { ClassifierService } from '../nlp/classifier.service';
 
 @Injectable()
 export class AnalyticsService {
@@ -10,6 +11,7 @@ export class AnalyticsService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly cache: CacheService,
     private readonly deputy: DeputyService,
+    private readonly classifier: ClassifierService,
   ) {}
 
   async summary() {
@@ -60,15 +62,30 @@ export class AnalyticsService {
 
   async approval() {
     return this.cache.wrap('analytics:approval', 300, async () => {
-      const { rows } = await this.pool.query(
-        `SELECT status, COUNT(*)::int AS total
-           FROM propositions
-           WHERE status IS NOT NULL
-           GROUP BY status
-           ORDER BY total DESC`,
-      );
-      return rows;
+      const [byStatus, rates] = await Promise.all([
+        this.pool.query(
+          `SELECT status, COUNT(*)::int AS total
+             FROM propositions
+             WHERE status IS NOT NULL
+             GROUP BY status
+             ORDER BY total DESC`,
+        ),
+        this.pool.query(
+          `SELECT AVG(approval_rate)::numeric(5,2) AS avg_approval,
+                  COUNT(*) FILTER (WHERE total_votes > 0)::int AS voted,
+                  COUNT(*)::int AS total
+             FROM v_proposition_approval`,
+        ),
+      ]);
+      return {
+        by_status: byStatus.rows,
+        overall: rates.rows[0] ?? null,
+      };
     });
+  }
+
+  async categories() {
+    return this.cache.wrap('analytics:categories', 600, () => this.classifier.breakdown());
   }
 
   /**

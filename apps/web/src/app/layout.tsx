@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
+import { RealtimeBadge } from '@/components/RealtimeBadge';
 
 export const metadata: Metadata = {
   title: 'Luizianne Leis — Transparência Legislativa',
@@ -12,6 +13,7 @@ const nav = [
   { href: '/propositions', label: 'Proposições' },
   { href: '/votes',        label: 'Votações' },
   { href: '/analytics',    label: 'Analytics' },
+  { href: '/notifications', label: 'Atividade' },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer className="mx-auto max-w-6xl px-4 py-8 text-xs text-zinc-500">
           Dados oficiais — API da Câmara dos Deputados.
         </footer>
+        <RealtimeBadge />
       </body>
     </html>
   );

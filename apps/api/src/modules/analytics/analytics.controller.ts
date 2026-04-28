@@ -26,4 +26,9 @@ export class AnalyticsController {
   network() {
     return this.service.network();
   }
+
+  @Get('categories')
+  categories() {
+    return this.service.categories();
+  }
 }

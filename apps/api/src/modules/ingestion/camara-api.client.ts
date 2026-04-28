@@ -66,4 +66,9 @@ export class CamaraApiClient {
     const { data } = await this.http.get(`/votacoes/${votacaoId}/votos`);
     return data?.dados ?? [];
   }
+
+  async getDeputyCommissions(deputyId: number) {
+    const { data } = await this.http.get(`/deputados/${deputyId}/orgaos`);
+    return data?.dados ?? [];
+  }
 }

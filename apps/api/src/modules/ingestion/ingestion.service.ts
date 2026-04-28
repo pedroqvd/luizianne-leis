@@ -5,6 +5,8 @@ import { CamaraApiClient } from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
 import { VoteRepository } from '../core/repositories/vote.repository';
+import { ClassifierService } from '../nlp/classifier.service';
+import { CommissionsRepository } from '../commissions/commissions.repository';
 import { EventBus } from '../../shared/event-bus';
 import { CacheService } from '../../infra/cache/cache.service';
 
@@ -26,6 +28,8 @@ export class IngestionService {
     private readonly deputies: DeputyRepository,
     private readonly props: PropositionRepository,
     private readonly votes: VoteRepository,
+    private readonly classifier: ClassifierService,
+    private readonly commissions: CommissionsRepository,
     private readonly events: EventBus,
     private readonly cache: CacheService,
   ) {}
@@ -36,6 +40,8 @@ export class IngestionService {
 
     const deputy = await this.syncDeputy(externalId);
     if (!deputy) return { deputies: 0, propositions: 0, events: 0 };
+
+    await this.syncDeputyCommissions(deputy.id, deputy.external_id);
 
     let totalProps = 0;
     let totalEvents = 0;
@@ -131,6 +137,13 @@ export class IngestionService {
     await this.syncProceedings(proposition.id, externalId);
     eventsEmitted += await this.syncVotes(proposition.id, externalId, targetDeputyId);
 
+    if (isNew || statusChanged) {
+      await this.classifier.classifyAndPersist(
+        proposition.id,
+        `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
+      );
+    }
+
     return { eventsEmitted };
   }
 
@@ -169,6 +182,30 @@ export class IngestionService {
       this.logger.debug(`authors sync failed for ${externalPropId}: ${e.message}`);
     }
     return events;
+  }
+
+  private async syncDeputyCommissions(deputyId: number, externalDeputyId: number) {
+    try {
+      const items = await this.api.getDeputyCommissions(externalDeputyId);
+      for (const item of items) {
+        if (!item?.idOrgao) continue;
+        const commission = await this.commissions.upsert({
+          external_id: Number(item.idOrgao),
+          name: item.nomeOrgao ?? item.nome ?? 'Órgão',
+          sigla: item.siglaOrgao ?? null,
+          payload: item,
+        });
+        await this.commissions.upsertMembership({
+          deputy_id: deputyId,
+          commission_id: commission.id,
+          role: item.titulo ?? null,
+          started_at: item.dataInicio ?? null,
+          ended_at: item.dataFim ?? null,
+        });
+      }
+    } catch (e: any) {
+      this.logger.debug(`commissions sync failed: ${e.message}`);
+    }
   }
 
   private async syncProceedings(propositionId: number, externalPropId: number) {
