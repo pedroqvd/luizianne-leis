@@ -1,0 +1,28 @@
+{
+  "name": "luizianne-leis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma de transparência legislativa - acompanhamento de mandato parlamentar",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev:api": "npm run start:dev --workspace=@luizianne/api",
+    "dev:web": "npm run dev --workspace=@luizianne/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=@luizianne/api",
+    "db:seed": "npm run db:seed --workspace=@luizianne/api",
+    "ingest:run": "npm run ingest:run --workspace=@luizianne/api"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
