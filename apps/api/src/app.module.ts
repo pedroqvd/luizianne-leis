@@ -1,0 +1,40 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ThrottlerModule } from '@nestjs/throttler';
+
+import { DatabaseModule } from './infra/database/database.module';
+import { RedisModule } from './infra/redis/redis.module';
+import { CacheModule } from './infra/cache/cache.module';
+import { HealthModule } from './modules/health/health.module';
+
+import { CoreModule } from './modules/core/core.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot({ wildcard: true, maxListeners: 50 }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60000),
+        limit: Number(process.env.RATE_LIMIT_MAX ?? 120),
+      },
+    ]),
+
+    DatabaseModule,
+    RedisModule,
+    CacheModule,
+
+    HealthModule,
+    CoreModule,
+    AnalyticsModule,
+    NotificationsModule,
+    IngestionModule,
+  ],
+})
+export class AppModule {}
