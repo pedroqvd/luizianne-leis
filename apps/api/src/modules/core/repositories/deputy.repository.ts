@@ -34,7 +34,9 @@ export class DeputyRepository {
     return rows[0] ?? null;
   }
 
-  async upsert(d: Partial<Deputy> & { external_id: number; name: string }): Promise<Deputy> {
+  async upsert(
+    d: Partial<Deputy> & { external_id: number; name: string; payload?: any },
+  ): Promise<Deputy> {
     const { rows } = await this.pool.query(
       `INSERT INTO deputies (external_id, name, party, state, photo_url, payload, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, now())
@@ -52,7 +54,7 @@ export class DeputyRepository {
         d.party ?? null,
         d.state ?? null,
         d.photo_url ?? null,
-        (d as any).payload ?? null,
+        d.payload ?? null,
       ],
     );
     return rows[0];

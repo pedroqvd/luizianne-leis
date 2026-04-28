@@ -61,8 +61,8 @@ Tempo total estimado: **15-20 min**.
 5. Anote a URL pública (`https://luizianne-api.onrender.com`).
 
 > ⚠️ Free tier do Render dorme após 15 min sem requests. Primeira chamada
-> demora ~30s. Para manter aquecido use **UptimeRobot** (gratuito) pingando
-> `/health` a cada 5 min.
+> demora ~30s. Já incluímos um workflow do GitHub Actions que pinga `/health`
+> a cada 10 min — instruções na seção "6. Keep-alive" abaixo.
 
 ---
 
@@ -103,6 +103,22 @@ https://<seu-projeto>.vercel.app/notifications
 ```
 
 Eventos `NEW_PROPOSITION` aparecem em tempo real conforme a ingestão sincroniza.
+
+---
+
+## 6. Keep-alive (manter o Render acordado, 100% grátis)
+
+O workflow `.github/workflows/keep-alive.yml` já está pronto. Para ativar:
+
+1. No GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**.
+2. Nome: `KEEP_ALIVE_URL`
+3. Valor: `https://luizianne-api.onrender.com/health`
+4. Pronto — o Actions agora pinga a cada 10 min, mantendo o Render acordado 24/7
+   sem custo. Você pode disparar manualmente em **Actions → keep-alive → Run workflow**.
+
+> Por que não UptimeRobot? Funciona também, mas o GitHub Actions já está no
+> repositório, é versionado, gratuito (2000 min/mês — usa < 2 min/mês) e não
+> precisa de outra conta.
 
 ---
 
