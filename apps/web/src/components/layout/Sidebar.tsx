@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
-  Activity, Users, LogOut, ChevronRight,
+  Activity, Users, LogOut, ChevronRight, FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/legislativo', label: 'Legislativo',  icon: ScrollText },
   { href: '/emendas',     label: 'Emendas',      icon: Landmark },
+  { href: '/editais',     label: 'Editais',      icon: FileText },
   { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
   { href: '/atividade',   label: 'Atividade',    icon: Activity },
 ];
