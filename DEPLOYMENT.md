@@ -58,7 +58,8 @@ Tempo total estimado: **15-20 min**.
 
 4. Deploy começa automaticamente. Acompanhe os logs até ver
    `[entrypoint] migrations done.` e `API ready on :8000`.
-5. Anote a URL pública (`https://luizianne-api.onrender.com`).
+5. Anote a URL pública — é o nome do serviço + `.onrender.com`
+   (ex: `https://luizianne-leis.onrender.com`).
 
 > ⚠️ Free tier do Render dorme após 15 min sem requests. Primeira chamada
 > demora ~30s. Já incluímos um workflow do GitHub Actions que pinga `/health`
@@ -77,7 +78,7 @@ Tempo total estimado: **15-20 min**.
 
    | Variável                | Valor                                  |
    |-------------------------|----------------------------------------|
-   | `NEXT_PUBLIC_API_URL`   | `https://luizianne-api.onrender.com`   |
+   | `NEXT_PUBLIC_API_URL`   | URL do Render (ex: `https://luizianne-leis.onrender.com`) |
 
 4. Clique **Deploy**. Após ~2 min está no ar em `https://<seu-projeto>.vercel.app`.
 
@@ -91,7 +92,7 @@ Tempo total estimado: **15-20 min**.
 Após o boot, o cron roda a cada 6 horas. Para popular imediatamente:
 
 ```bash
-curl -X POST https://luizianne-api.onrender.com/api/admin/ingest \
+curl -X POST https://luizianne-leis.onrender.com/api/admin/ingest \
   -H "x-admin-token: <ADMIN_TOKEN>"
 ```
 
@@ -112,7 +113,7 @@ O workflow `.github/workflows/keep-alive.yml` já está pronto. Para ativar:
 
 1. No GitHub: **Settings → Secrets and variables → Actions → Variables → New repository variable**.
 2. Nome: `KEEP_ALIVE_URL`
-3. Valor: `https://luizianne-api.onrender.com/health`
+3. Valor: URL do Render + `/health` (ex: `https://luizianne-leis.onrender.com/health`)
 4. Pronto — o Actions agora pinga a cada 10 min, mantendo o Render acordado 24/7
    sem custo. Você pode disparar manualmente em **Actions → keep-alive → Run workflow**.
 
