@@ -13,7 +13,7 @@ interface Network {
  */
 export function CoauthorshipNetwork({ data }: { data: Network }) {
   const layout = useMemo(() => buildLayout(data), [data]);
-  if (!data.nodes.length) return <p className="text-sm text-zinc-500">Sem coautores ainda.</p>;
+  if (!data.nodes.length) return <p className="text-sm text-slate-400">Sem coautores ainda.</p>;
 
   return (
     <svg viewBox="0 0 600 600" className="w-full h-[480px]">
@@ -28,8 +28,8 @@ export function CoauthorshipNetwork({ data }: { data: Network }) {
       ))}
       {layout.nodes.map((n) => (
         <g key={n.id} transform={`translate(${n.x},${n.y})`}>
-          <circle r={n.center ? 14 : 8} fill={n.center ? '#dc2626' : '#27272a'} />
-          <text x={12} y={4} fontSize={10} fill="#52525b">{n.name}</text>
+          <circle r={n.center ? 14 : 8} fill={n.center ? '#dc2626' : '#475569'} />
+          <text x={12} y={4} fontSize={10} fill="#64748b">{n.name}</text>
         </g>
       ))}
     </svg>

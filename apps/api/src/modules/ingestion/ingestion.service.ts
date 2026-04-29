@@ -74,10 +74,50 @@ export class IngestionService {
       page += 1;
     }
 
+    // Fase 4: ingerir proposições onde a deputada é relatora
+    const relatorStats = await this.syncRelatorPropositions(deputy.id, deputy.external_id);
+    totalProps += relatorStats.propositions;
+    totalEvents += relatorStats.events;
+
     await this.cache.invalidate('propositions:*');
     await this.cache.invalidate('analytics:*');
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
     return { deputies: 1, propositions: totalProps, events: totalEvents };
+  }
+
+  private async syncRelatorPropositions(
+    deputyId: number,
+    externalDeputyId: number,
+  ): Promise<{ propositions: number; events: number }> {
+    let totalProps = 0;
+    let totalEvents = 0;
+    let page = 1;
+
+    while (true) {
+      const { items, hasNext } = await this.api.listRelatorPropositions(externalDeputyId, page, 100);
+      if (!items.length) break;
+
+      const batches = chunk(items, this.concurrency);
+      for (const batch of batches) {
+        const results = await Promise.allSettled(
+          batch.map((p: any) => this.syncProposition(p.id, deputyId)),
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            totalProps += 1;
+            totalEvents += r.value.eventsEmitted;
+          } else {
+            this.logger.warn(`relator proposition sync failed: ${r.reason?.message ?? r.reason}`);
+          }
+        }
+      }
+
+      if (!hasNext) break;
+      page += 1;
+    }
+
+    this.logger.log(`relator sync: ${totalProps} propositions as rapporteur`);
+    return { propositions: totalProps, events: totalEvents };
   }
 
   private async syncDeputy(externalId: number) {

@@ -2,7 +2,8 @@ import { api } from '@/lib/api';
 import { StatCard } from '@/components/StatCard';
 import { ProductivityChart } from '@/components/ProductivityChart';
 import { TypeBreakdown } from '@/components/TypeBreakdown';
-import { TrendingUp, FileText, Users, Award, AlertCircle } from 'lucide-react';
+import { ProductivityHeatmap } from '@/components/ProductivityHeatmap';
+import { TrendingUp, FileText, Users, Award, AlertCircle, GitBranch } from 'lucide-react';
 
 export const revalidate = 60;
 
@@ -20,8 +21,13 @@ interface Summary {
 
 export default async function DashboardPage() {
   let data: Summary | null = null;
+  let heatmap: { day: string; total: number }[] = [];
+
   try {
-    data = await api<Summary>('/analytics/summary');
+    [data, heatmap] = await Promise.all([
+      api<Summary>('/analytics/summary'),
+      api<{ day: string; total: number }[]>('/analytics/heatmap').catch(() => []),
+    ]);
   } catch {}
 
   const prod = data?.productivity;
@@ -109,6 +115,16 @@ export default async function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* Heatmap de produtividade */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+        <div className="flex items-center gap-2 mb-5">
+          <GitBranch className="w-4 h-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-700">Heatmap de produtividade</h2>
+          <span className="text-xs text-slate-400 ml-1">últimos 12 meses</span>
+        </div>
+        <ProductivityHeatmap data={heatmap} />
+      </div>
 
       {/* Charts */}
       <section className="grid gap-6 lg:grid-cols-2">

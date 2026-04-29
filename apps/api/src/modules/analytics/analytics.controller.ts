@@ -31,4 +31,9 @@ export class AnalyticsController {
   categories() {
     return this.service.categories();
   }
+
+  @Get('heatmap')
+  heatmap() {
+    return this.service.heatmap();
+  }
 }

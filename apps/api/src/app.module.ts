@@ -16,6 +16,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { EditaisModule } from './modules/editais/editais.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
     NotificationsModule,
     CommissionsModule,
     IngestionModule,
+    EditaisModule,
     AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
   Activity, Users, LogOut, ChevronRight, FileText,
+  Vote, Building2, FileSearch, Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -13,14 +14,14 @@ const navItems = [
   { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/legislativo', label: 'Legislativo',  icon: ScrollText },
   { href: '/emendas',     label: 'Emendas',      icon: Landmark },
-  { href: '/editais',     label: 'Editais',      icon: FileText },
+  { href: '/votes',       label: 'Votações',     icon: Vote },
+  { href: '/comissoes',   label: 'Comissões',    icon: Building2 },
+  { href: '/editais',     label: 'Editais',      icon: FileSearch },
   { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
   { href: '/atividade',   label: 'Atividade',    icon: Activity },
 ];
 
-interface Props {
-  isAdmin?: boolean;
-}
+interface Props { isAdmin?: boolean }
 
 export function Sidebar({ isAdmin = false }: Props) {
   const pathname = usePathname();
@@ -38,6 +39,10 @@ export function Sidebar({ isAdmin = false }: Props) {
     return pathname.startsWith(href);
   }
 
+  function openSearch() {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+  }
+
   return (
     <aside className="hidden lg:flex flex-col w-[240px] min-h-screen bg-sidebar-bg border-r border-white/5 flex-shrink-0">
       {/* Brand */}
@@ -53,15 +58,27 @@ export function Sidebar({ isAdmin = false }: Props) {
         </div>
       </div>
 
+      {/* Search shortcut */}
+      <div className="px-3 pt-3">
+        <button
+          onClick={openSearch}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sidebar-text hover:bg-white/10 transition-colors text-xs"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="flex-1 text-left">Buscar…</span>
+          <kbd className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+        </button>
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <p className="section-label px-2 mb-3">Navegação</p>
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p className="section-label px-2 mb-2">Navegação</p>
         {navItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
               isActive(href)
                 ? 'bg-sidebar-active text-white'
                 : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
@@ -83,7 +100,7 @@ export function Sidebar({ isAdmin = false }: Props) {
           <Link
             href="/admin/equipe"
             className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
               pathname.startsWith('/admin')
                 ? 'bg-sidebar-active text-white'
                 : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
@@ -98,7 +115,7 @@ export function Sidebar({ isAdmin = false }: Props) {
         )}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-white transition-all duration-150 group"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-white transition-all duration-150 group"
         >
           <LogOut className="w-4 h-4 flex-shrink-0 text-sidebar-text group-hover:text-red-400" />
           <span>Sair</span>
