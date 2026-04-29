@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
-  Activity, Settings, LogOut, ChevronRight,
+  Activity, Users, LogOut, ChevronRight, FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -13,11 +13,16 @@ const navItems = [
   { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/legislativo', label: 'Legislativo',  icon: ScrollText },
   { href: '/emendas',     label: 'Emendas',      icon: Landmark },
+  { href: '/editais',     label: 'Editais',      icon: FileText },
   { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
   { href: '/atividade',   label: 'Atividade',    icon: Activity },
 ];
 
-export function Sidebar() {
+interface Props {
+  isAdmin?: boolean;
+}
+
+export function Sidebar({ isAdmin = false }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -34,7 +39,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden lg:flex flex-col w-[240px] min-h-screen bg-sidebar-bg border-r border-sidebar-border flex-shrink-0">
+    <aside className="hidden lg:flex flex-col w-[240px] min-h-screen bg-sidebar-bg border-r border-white/5 flex-shrink-0">
       {/* Brand */}
       <div className="px-5 py-6 border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -67,27 +72,30 @@ export function Sidebar() {
               isActive(href) ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
             )} />
             <span className="flex-1">{label}</span>
-            {isActive(href) && (
-              <ChevronRight className="w-3 h-3 text-brand-400 opacity-70" />
-            )}
+            {isActive(href) && <ChevronRight className="w-3 h-3 text-brand-400 opacity-70" />}
           </Link>
         ))}
       </nav>
 
       {/* Bottom */}
       <div className="px-3 py-4 border-t border-white/5 space-y-0.5">
-        <Link
-          href="/admin"
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
-            pathname.startsWith('/admin')
-              ? 'bg-sidebar-active text-white'
-              : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
-          )}
-        >
-          <Settings className="w-4 h-4 flex-shrink-0 text-sidebar-text group-hover:text-slate-300" />
-          <span>Configurações</span>
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/admin/equipe"
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group',
+              pathname.startsWith('/admin')
+                ? 'bg-sidebar-active text-white'
+                : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
+            )}
+          >
+            <Users className={cn(
+              'w-4 h-4 flex-shrink-0',
+              pathname.startsWith('/admin') ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
+            )} />
+            <span>Equipe</span>
+          </Link>
+        )}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-white transition-all duration-150 group"

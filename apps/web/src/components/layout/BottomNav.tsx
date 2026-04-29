@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ScrollText, Landmark, BarChart3, Activity } from 'lucide-react';
+import { LayoutDashboard, ScrollText, Landmark, FileText, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const items = [
-  { href: '/',            label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/',            label: 'Início',      icon: LayoutDashboard },
   { href: '/legislativo', label: 'Legislativo', icon: ScrollText },
   { href: '/emendas',     label: 'Emendas',     icon: Landmark },
-  { href: '/analytics',   label: 'Analytics',   icon: BarChart3 },
+  { href: '/editais',     label: 'Editais',     icon: FileText },
   { href: '/atividade',   label: 'Atividade',   icon: Activity },
 ];
 

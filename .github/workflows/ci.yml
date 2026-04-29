@@ -52,3 +52,6 @@ jobs:
         run: npm run build --workspace=@luizianne/web
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-build
+          NEXT_PUBLIC_APP_URL: https://luizianne-leis.vercel.app
