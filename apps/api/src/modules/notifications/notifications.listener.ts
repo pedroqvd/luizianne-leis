@@ -26,10 +26,10 @@ export class NotificationsListener {
   ) {}
 
   @OnEvent('NEW_PROPOSITION')
-  async onNewProposition(event: DomainEvent) {
+  async onNewProposition(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
     await this.sendEmailsForArea('legislativo', async (to) => ({
-      subject: `Nova proposição: ${event.payload?.title?.slice(0, 60) ?? 'Legislativo'}`,
+      subject: `Nova proposição: ${String(event.payload?.title ?? 'Legislativo').slice(0, 60)}`,
       html: this.email.newPropositionHtml({
         title:  event.payload?.title ?? '—',
         type:   event.payload?.type  ?? '—',
@@ -41,7 +41,7 @@ export class NotificationsListener {
   }
 
   @OnEvent('STATUS_CHANGED')
-  async onStatusChanged(event: DomainEvent) {
+  async onStatusChanged(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
     await this.sendEmailsForArea('legislativo', async () => ({
       subject: `Status atualizado: ${event.payload?.status ?? ''}`,
@@ -57,16 +57,16 @@ export class NotificationsListener {
   }
 
   @OnEvent('NEW_VOTE')
-  async onNewVote(event: DomainEvent) {
+  async onNewVote(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
   }
 
   @OnEvent('NEW_RAPPORTEUR')
-  async onNewRapporteur(event: DomainEvent) {
+  async onNewRapporteur(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
   }
 
-  private async handle(event: DomainEvent) {
+  private async handle(event: DomainEvent<Record<string, any>>) {
     this.logger.log(`event ${event.type} on ${event.aggregateType}#${event.aggregateId}`);
     await this.service.record(event);
     this.gateway.broadcast(event);
