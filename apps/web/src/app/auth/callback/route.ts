@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -24,8 +25,38 @@ export async function GET(request: NextRequest) {
       },
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error && data.user) {
+      const admin = createAdminClient();
+      const adminEmail = process.env.ADMIN_EMAIL;
+
+      // Check if this is first user or matches ADMIN_EMAIL
+      const { count } = await admin
+        .from('app_users')
+        .select('*', { count: 'exact', head: true });
+
+      const isFirstUser = count === 0;
+      const isAdminEmail = adminEmail && data.user.email === adminEmail;
+      const role = isFirstUser || isAdminEmail ? 'admin' : 'member';
+
+      // Upsert user profile
+      await admin.from('app_users').upsert({
+        id: data.user.id,
+        email: data.user.email!,
+        name: data.user.user_metadata?.full_name ?? data.user.email!.split('@')[0],
+        role,
+      }, { onConflict: 'id', ignoreDuplicates: false });
+
+      // Ensure all subscription rows exist for new users
+      const { data: areas } = await admin.from('notification_areas').select('id');
+      if (areas?.length) {
+        await admin.from('user_subscriptions').upsert(
+          areas.map((a) => ({ user_id: data.user!.id, area_id: a.id, enabled: false })),
+          { onConflict: 'user_id,area_id', ignoreDuplicates: true },
+        );
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
