@@ -1,0 +1,39 @@
+name: keep-alive
+
+# Pinga o /health do Render a cada 10 min para manter o free tier acordado.
+# Render dorme após 15 min de inatividade — esse cron evita o sleep.
+# Variável KEEP_ALIVE_URL configurada em Settings → Secrets and variables →
+# Actions → Variables (não é secret, pode ficar como variable mesmo).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API health endpoint
+        env:
+          URL: ${{ vars.KEEP_ALIVE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::warning::KEEP_ALIVE_URL not set; skipping."
+            exit 0
+          fi
+          echo "Pinging $URL"
+          for i in 1 2 3; do
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 60 "$URL" || echo "000")
+            echo "attempt $i → HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat /tmp/body
+              exit 0
+            fi
+            sleep $((i * 10))
+          done
+          echo "::error::API unreachable after 3 attempts"
+          exit 1

@@ -11,7 +11,7 @@
     "start:prod": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
-    "db:migrate": "ts-node src/infra/database/run-migrations.ts",
+    "db:migrate": "node scripts/migrate.js",
     "db:seed": "ts-node src/infra/database/seed.ts",
     "ingest:run": "ts-node src/modules/ingestion/cli/run-once.ts"
   },

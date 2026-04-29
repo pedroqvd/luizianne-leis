@@ -1,9 +1,22 @@
-import { Pool } from 'pg';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+/* eslint-disable */
+// Standalone migration runner used at container start.
+// Pure Node + pg (no ts-node), so it works in the runtime image.
+
+const { Pool } = require('pg');
+const fs = require('node:fs');
+const path = require('node:path');
 
 async function main() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error('[migrate] DATABASE_URL not set');
+    process.exit(1);
+  }
+  const needsSsl = /supabase|amazonaws|render|neon|aiven|cockroachlabs|cloudsql/i.test(url);
+  const pool = new Pool({
+    connectionString: url,
+    ssl: needsSsl ? { rejectUnauthorized: false } : false,
+  });
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -13,7 +26,8 @@ async function main() {
     );
   `);
 
-  const root = path.resolve(__dirname, '../../../../../db/migrations');
+  const root =
+    process.env.MIGRATIONS_DIR ?? path.resolve(__dirname, '../../../db/migrations');
   const files = fs.readdirSync(root).filter((f) => f.endsWith('.sql')).sort();
 
   for (const file of files) {
@@ -22,11 +36,11 @@ async function main() {
       [file],
     );
     if (rowCount) {
-      console.log(`= skip ${file}`);
+      console.log('= skip', file);
       continue;
     }
     const sql = fs.readFileSync(path.join(root, file), 'utf8');
-    console.log(`> apply ${file}`);
+    console.log('> apply', file);
     await pool.query('BEGIN');
     try {
       await pool.query(sql);
@@ -39,7 +53,7 @@ async function main() {
   }
 
   await pool.end();
-  console.log('migrations done.');
+  console.log('[migrate] done.');
 }
 
 main().catch((e) => {

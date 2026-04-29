@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: luizianne-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: SWAGGER_ENABLED
+        value: "true"
+      - key: INGESTION_CRON
+        value: "0 */6 * * *"
+      - key: INGESTION_CONCURRENCY
+        value: "2"
+      - key: CACHE_TTL_SECONDS
+        value: "600"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX
+        value: "120"
+      - key: TARGET_DEPUTY_EXTERNAL_ID
+        value: "141401"
+      - key: CAMARA_API_BASE_URL
+        value: "https://dadosabertos.camara.leg.br/api/v2"
+      - key: PG_POOL_MAX
+        value: "5"
+      # set these as secrets in the Render dashboard:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

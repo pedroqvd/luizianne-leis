@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
-import { CamaraApiClient } from './camara-api.client';
+import {
+  CamaraApiClient,
+  extractDeputyIdFromUri,
+  mapAuthorRole,
+} from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
 import { VoteRepository } from '../core/repositories/vote.repository';
@@ -152,8 +156,8 @@ export class IngestionService {
     try {
       const authors = await this.api.getPropositionAuthors(externalPropId);
       for (const a of authors) {
-        const externalDeputyId = extractDeputyId(a);
-        if (!externalDeputyId) continue;
+        const externalDeputyId = extractDeputyIdFromUri(a.uri);
+        if (!externalDeputyId) continue; // autor é comissão/órgão, ignora
 
         let dep = await this.deputies.findByExternalId(externalDeputyId);
         if (!dep) {
@@ -165,8 +169,13 @@ export class IngestionService {
           });
         }
 
-        const role = mapRole(a.tipo, a.proponente, a.ordemAssinatura);
-        const { isNew } = await this.props.upsertAuthor(propositionId, dep.id, role, a.ordemAssinatura ?? null);
+        const role = mapAuthorRole(a.tipo, a.proponente, a.ordemAssinatura);
+        const { isNew } = await this.props.upsertAuthor(
+          propositionId,
+          dep.id,
+          role,
+          a.ordemAssinatura ?? null,
+        );
 
         if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
           this.events.emit({
@@ -191,7 +200,7 @@ export class IngestionService {
         if (!item?.idOrgao) continue;
         const commission = await this.commissions.upsert({
           external_id: Number(item.idOrgao),
-          name: item.nomeOrgao ?? item.nome ?? 'Órgão',
+          name: item.nomeOrgao ?? 'Órgão',
           sigla: item.siglaOrgao ?? null,
           payload: item,
         });
@@ -234,18 +243,26 @@ export class IngestionService {
       for (const v of votings) {
         const detalhes = await this.api.getVoteDetails(v.id).catch(() => []);
         for (const det of detalhes) {
-          const dep = det.deputado_?.id
-            ? await this.deputies.findByExternalId(det.deputado_.id)
-            : null;
+          const externalId = det.deputado_?.id;
+          if (!externalId) continue; // sem deputado identificado, pula (UNIQUE com NULL aceita duplicatas em PG)
+
+          let dep = await this.deputies.findByExternalId(externalId);
+          if (!dep) {
+            dep = await this.deputies.upsert({
+              external_id: externalId,
+              name: det.deputado_?.nome ?? 'Deputado(a)',
+            });
+          }
+
           const { isNew } = await this.votes.upsert({
             proposition_id: propositionId,
-            deputy_id: dep?.id ?? null,
+            deputy_id: dep.id,
             vote: det.tipoVoto ?? 'Desconhecido',
             session_id: String(v.id),
             date: v.dataHoraRegistro ?? v.data ?? null,
             payload: { voting: v, detail: det },
           });
-          if (isNew && dep?.id === targetDeputyId) {
+          if (isNew && dep.id === targetDeputyId) {
             this.events.emit({
               type: 'NEW_VOTE',
               aggregateType: 'vote',
@@ -267,20 +284,4 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
-}
-
-function extractDeputyId(a: any): number | null {
-  if (a?.id) return Number(a.id);
-  if (typeof a?.uri === 'string') {
-    const m = a.uri.match(/\/deputados\/(\d+)/);
-    if (m) return Number(m[1]);
-  }
-  return null;
-}
-
-function mapRole(tipo?: string, proponente?: number, ordem?: number): 'author' | 'coauthor' | 'rapporteur' {
-  const t = (tipo ?? '').toLowerCase();
-  if (t.includes('relator')) return 'rapporteur';
-  if (proponente === 1 || ordem === 1) return 'author';
-  return 'coauthor';
 }
