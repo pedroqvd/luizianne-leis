@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isAdmin = await getIsAdmin();
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       <Sidebar isAdmin={isAdmin} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <MobileHeader />

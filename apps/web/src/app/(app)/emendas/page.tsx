@@ -192,7 +192,7 @@ export default async function EmendasPage() {
                     )}
                     <Link
                       href={`/propositions/${p.id}`}
-                      className="text-xs text-brand-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-xs text-brand-700 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
                     >
                       Detalhes →
                     </Link>

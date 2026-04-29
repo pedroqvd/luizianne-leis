@@ -49,12 +49,12 @@ export default async function LegislativoPage({
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="page-title">Legislativo</h1>
           <p className="text-sm text-slate-500 mt-1">Proposições, relatorias e projetos da deputada</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full font-medium">
             {data.total} proposições
           </span>
@@ -119,7 +119,7 @@ export default async function LegislativoPage({
                       </a>
                     )}
                     <Link href={`/legislativo/${p.id}`}
-                      className="text-xs text-brand-700 hover:text-brand-800 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      className="text-xs text-brand-700 hover:text-brand-800 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
                       Detalhes →
                     </Link>
                   </div>

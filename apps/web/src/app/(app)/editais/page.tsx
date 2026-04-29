@@ -170,8 +170,8 @@ export default async function EditaisPage({
 
       {/* Filtros */}
       <div className="stat-card">
-        <form className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-[200px]">
+        <form className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Buscar</label>
             <input
               name="search"
@@ -180,7 +180,7 @@ export default async function EditaisPage({
               className="input text-sm"
             />
           </div>
-          <div className="w-52">
+          <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Ministério / Órgão</label>
             <select name="ministerio" defaultValue={searchParams.ministerio ?? ''} className="input text-sm">
               <option value="">Todos</option>
@@ -189,7 +189,7 @@ export default async function EditaisPage({
               ))}
             </select>
           </div>
-          <div className="w-40">
+          <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Situação</label>
             <select name="situacao" defaultValue={searchParams.situacao ?? ''} className="input text-sm">
               <option value="">Todas</option>
@@ -199,7 +199,7 @@ export default async function EditaisPage({
               <option value="revogado">Revogados</option>
             </select>
           </div>
-          <div className="w-36">
+          <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Prazo</label>
             <select name="encerrandoEm" defaultValue={searchParams.encerrandoEm ?? ''} className="input text-sm">
               <option value="">Qualquer</option>
@@ -208,7 +208,7 @@ export default async function EditaisPage({
               <option value="30">Encerra em 30d</option>
             </select>
           </div>
-          <div className="flex gap-2">
+          <div className="sm:col-span-2 lg:col-span-4 flex gap-2">
             <button type="submit" className="btn-primary">
               <Filter className="w-3.5 h-3.5" /> Filtrar
             </button>

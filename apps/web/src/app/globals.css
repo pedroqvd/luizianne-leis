@@ -68,3 +68,19 @@
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
 }
+
+/* Use dynamic viewport height to avoid iOS Safari address-bar clipping */
+.h-dvh {
+  height: 100vh; /* fallback */
+  height: 100dvh;
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  .btn-primary, .btn-secondary {
+    min-height: 44px;
+  }
+  .input {
+    min-height: 44px;
+  }
+}

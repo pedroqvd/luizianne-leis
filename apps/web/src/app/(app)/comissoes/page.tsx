@@ -44,7 +44,7 @@ export default async function ComissoesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="stat-card text-center py-5">
           <p className="text-3xl font-bold text-green-600">{ativas.length}</p>
           <p className="text-xs text-slate-400 mt-1">Comissões ativas</p>

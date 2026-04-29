@@ -90,7 +90,7 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4" onClick={() => setOpen(false)}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-4" onClick={() => setOpen(false)}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
       <div
         className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in-up"
@@ -114,7 +114,7 @@ export function CommandPalette() {
         </div>
 
         {/* Results */}
-        <ul className="max-h-80 overflow-y-auto py-2">
+        <ul className="max-h-56 sm:max-h-80 overflow-y-auto py-2">
           {results.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-slate-400">Nenhum resultado.</li>
           ) : (
