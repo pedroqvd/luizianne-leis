@@ -2,6 +2,7 @@ import { Controller, ForbiddenException, Headers, Post, Query } from '@nestjs/co
 import { ApiTags } from '@nestjs/swagger';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { ClassifierService } from '../nlp/classifier.service';
+import { EditaisIngestion } from '../editais/editais.ingestion';
 
 /**
  * Endpoints administrativos. Protegidos por header `x-admin-token` comparado com
@@ -13,6 +14,7 @@ export class AdminController {
   constructor(
     private readonly queue: IngestionQueue,
     private readonly classifier: ClassifierService,
+    private readonly editaisIngestion: EditaisIngestion,
   ) {}
 
   @Post('ingest')
@@ -29,6 +31,13 @@ export class AdminController {
   ) {
     this.assertAuth(token);
     return this.classifier.reclassifyAll(force === 'true');
+  }
+
+  @Post('ingest-editais')
+  async triggerEditais(@Headers('x-admin-token') token?: string) {
+    this.assertAuth(token);
+    const result = await this.editaisIngestion.ingest();
+    return { ok: true, ...result };
   }
 
   private assertAuth(token?: string) {
