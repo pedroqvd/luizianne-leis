@@ -37,9 +37,9 @@ export default async function DashboardPage() {
           />
         )}
         <div>
-          <h1 className="text-2xl font-semibold">{data?.deputy.name ?? 'Carregando…'}</h1>
+          <h1 className="text-2xl font-semibold">{data?.deputy.name ?? 'Luizianne Lins'}</h1>
           <p className="text-sm text-zinc-500">
-            {data?.deputy.party} — {data?.deputy.state}
+            {data ? `${data.deputy.party} — ${data.deputy.state}` : 'Backend indisponível'}
           </p>
         </div>
       </header>
