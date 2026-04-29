@@ -223,6 +223,29 @@ export class CamaraApiClient {
     return data?.dados ?? [];
   }
 
+  /** Proposições onde a deputada figura como relatora (idDeputadoRelator). */
+  async listRelatorPropositions(
+    deputyId: number,
+    page = 1,
+    itens = 100,
+  ): Promise<{ items: CamaraPropositionListItem[]; hasNext: boolean }> {
+    const { data } = await this.http.get<CamaraEnvelope<CamaraPropositionListItem[]>>(
+      '/proposicoes',
+      {
+        params: {
+          idDeputadoRelator: deputyId,
+          ordem: 'DESC',
+          ordenarPor: 'id',
+          pagina: page,
+          itens,
+        },
+      },
+    );
+    const items = data?.dados ?? [];
+    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
+    return { items, hasNext };
+  }
+
   async getDeputyCommissions(deputyId: number): Promise<CamaraDeputyOrgao[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyOrgao[]>>(
       `/deputados/${deputyId}/orgaos`,

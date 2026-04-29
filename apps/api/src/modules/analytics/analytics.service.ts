@@ -88,6 +88,25 @@ export class AnalyticsService {
     return this.cache.wrap('analytics:categories', 600, () => this.classifier.breakdown());
   }
 
+  async heatmap() {
+    return this.cache.wrap('analytics:heatmap', 300, async () => {
+      const d = await this.deputy.getTarget();
+      const { rows } = await this.pool.query(
+        `SELECT DATE_TRUNC('day', p.presented_at)::date AS day,
+                COUNT(DISTINCT p.id)::int AS total
+           FROM propositions p
+           JOIN proposition_authors pa ON pa.proposition_id = p.id
+           WHERE pa.deputy_id = $1
+             AND p.presented_at IS NOT NULL
+             AND p.presented_at >= NOW() - INTERVAL '2 years'
+           GROUP BY day
+           ORDER BY day ASC`,
+        [d.id],
+      );
+      return rows as { day: string; total: number }[];
+    });
+  }
+
   /**
    * Rede de coautoria centrada na deputada-alvo.
    * Retorna nodes (deputados) + edges (peso = número de proposições compartilhadas).
