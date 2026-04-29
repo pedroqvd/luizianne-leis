@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, LogOut, Menu } from 'lucide-react';
+import { Bell, LogOut, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export function MobileHeader() {
@@ -25,6 +25,12 @@ export function MobileHeader() {
       </Link>
 
       <div className="flex items-center gap-1">
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))}
+          className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+        </button>
         <Link
           href="/atividade"
           className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"

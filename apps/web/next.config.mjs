@@ -16,6 +16,20 @@ const nextConfig = {
           { key: 'Referrer-Policy',        value: 'strict-origin-when-cross-origin' },
         ],
       },
+      // Páginas de dados: serve stale imediatamente, revalida em background
+      {
+        source: '/(legislativo|emendas|editais|analytics|atividade|votes|comissoes)(.*)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, s-maxage=60, stale-while-revalidate=300' },
+        ],
+      },
+      // Assets estáticos: cache longo com imutabilidade
+      {
+        source: '/_next/static/(.*)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
     ];
   },
 };

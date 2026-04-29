@@ -2,6 +2,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { MobileHeader } from '@/components/layout/Header';
 import { RealtimeBadge } from '@/components/RealtimeBadge';
+import { CommandPalette } from '@/components/CommandPalette';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <BottomNav />
       <RealtimeBadge />
+      <CommandPalette />
     </div>
   );
 }
