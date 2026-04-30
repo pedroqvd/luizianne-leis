@@ -17,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AdminModule } from './modules/admin/admin.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
 import { EditaisModule } from './modules/editais/editais.module';
+import { EmendasOrcModule } from './modules/emendas-orc/emendas-orc.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { EditaisModule } from './modules/editais/editais.module';
     CommissionsModule,
     IngestionModule,
     EditaisModule,
+    EmendasOrcModule,
     AdminModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

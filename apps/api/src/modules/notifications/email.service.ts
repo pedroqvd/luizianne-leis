@@ -89,4 +89,39 @@ export class EmailService {
   </div>
 </div>`;
   }
+
+  absenceHtml(p: { proposition_title: string; session_id: string; date?: string | null }) {
+    const dateStr = p.date
+      ? new Date(p.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+    return `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:#7f1d1d;padding:24px 32px;border-radius:12px 12px 0 0">
+    <span style="color:#fff;font-size:20px;font-weight:700">⚠️ Ausência em Votação Nominal</span>
+  </div>
+  <div style="background:#fff;border:1px solid #fecaca;padding:32px;border-radius:0 0 12px 12px">
+    <p style="color:#991b1b;font-weight:600;margin:0 0 8px">A deputada não registrou voto nesta votação nominal.</p>
+    <p style="color:#334155;margin:0 0 8px"><strong>Proposição:</strong> ${p.proposition_title}</p>
+    <p style="color:#64748b;margin:0 0 8px"><strong>Sessão:</strong> ${p.session_id}</p>
+    <p style="color:#64748b;margin:0 0 24px"><strong>Data/hora:</strong> ${dateStr}</p>
+    <p style="color:#94a3b8;font-size:12px">Verifique o registro de presença e se houve justificativa de ausência.</p>
+  </div>
+</div>`;
+  }
+
+  approvedLawHtml(p: { title: string; type: string; number: number; year: number; status: string; url?: string }) {
+    return `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:#14532d;padding:24px 32px;border-radius:12px 12px 0 0">
+    <span style="color:#fff;font-size:20px;font-weight:700">✅ Luizianne Lins · Lei Aprovada</span>
+  </div>
+  <div style="background:#fff;border:1px solid #bbf7d0;padding:32px;border-radius:0 0 12px 12px">
+    <h2 style="color:#14532d;margin:0 0 8px">Proposição aprovada!</h2>
+    <p style="color:#475569;margin:0 0 8px"><strong>${p.type} ${p.number}/${p.year}</strong></p>
+    <p style="color:#334155;margin:0 0 16px">${p.title}</p>
+    <p style="margin:0 0 24px">Status: <strong style="color:#16a34a">${p.status}</strong></p>
+    ${p.url ? `<a href="${p.url}" style="background:#16a34a;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Ver na Câmara →</a>` : ''}
+  </div>
+</div>`;
+  }
 }

@@ -4,7 +4,9 @@ export type EventType =
   | 'NEW_PROPOSITION'
   | 'STATUS_CHANGED'
   | 'NEW_VOTE'
-  | 'NEW_RAPPORTEUR';
+  | 'NEW_RAPPORTEUR'
+  | 'DEPUTY_ABSENT'
+  | 'LAW_APPROVED';
 
 export interface Deputy {
   id: number;

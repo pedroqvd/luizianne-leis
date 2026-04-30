@@ -7,13 +7,6 @@ import { EmailService } from './email.service';
 import { DomainEvent } from '../../shared/event-bus';
 import { PG_POOL } from '../../infra/database/database.module';
 
-const AREA_SLUG: Record<string, string> = {
-  NEW_PROPOSITION: 'legislativo',
-  STATUS_CHANGED:  'legislativo',
-  NEW_VOTE:        'votacoes',
-  NEW_RAPPORTEUR:  'legislativo',
-};
-
 @Injectable()
 export class NotificationsListener {
   private readonly logger = new Logger(NotificationsListener.name);
@@ -28,11 +21,11 @@ export class NotificationsListener {
   @OnEvent('NEW_PROPOSITION')
   async onNewProposition(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
-    await this.sendEmailsForArea('legislativo', async (to) => ({
+    await this.sendEmailsForArea('legislativo', async () => ({
       subject: `Nova proposição: ${String(event.payload?.title ?? 'Legislativo').slice(0, 60)}`,
       html: this.email.newPropositionHtml({
-        title:  event.payload?.title ?? '—',
-        type:   event.payload?.type  ?? '—',
+        title:  event.payload?.title  ?? '—',
+        type:   event.payload?.type   ?? '—',
         number: event.payload?.number ?? 0,
         year:   event.payload?.year   ?? new Date().getFullYear(),
         url:    event.payload?.url,
@@ -66,13 +59,43 @@ export class NotificationsListener {
     await this.handle(event);
   }
 
+  /** Ausência da deputada em votação nominal */
+  @OnEvent('DEPUTY_ABSENT')
+  async onDeputyAbsent(event: DomainEvent<Record<string, any>>) {
+    await this.handle(event);
+    await this.sendEmailsForArea('ausencias', async () => ({
+      subject: `⚠️ Ausência em votação nominal — ${fmtDate(event.payload?.date)}`,
+      html: this.email.absenceHtml({
+        proposition_title: event.payload?.proposition_title ?? '—',
+        session_id:        String(event.payload?.session_id ?? ''),
+        date:              event.payload?.date,
+      }),
+    }));
+  }
+
+  /** Lei aprovada — emitido pelo LawsAlertService */
+  @OnEvent('LAW_APPROVED')
+  async onLawApproved(event: DomainEvent<Record<string, any>>) {
+    await this.handle(event);
+    await this.sendEmailsForArea('legislativo', async () => ({
+      subject: `✅ Aprovada: ${String(event.payload?.title ?? '').slice(0, 60)}`,
+      html: this.email.approvedLawHtml({
+        title:  event.payload?.title  ?? '—',
+        type:   event.payload?.type   ?? '—',
+        number: event.payload?.number ?? 0,
+        year:   event.payload?.year   ?? new Date().getFullYear(),
+        status: event.payload?.status ?? 'Aprovado',
+        url:    event.payload?.url,
+      }),
+    }));
+  }
+
   private async handle(event: DomainEvent<Record<string, any>>) {
     this.logger.log(`event ${event.type} on ${event.aggregateType}#${event.aggregateId}`);
     await this.service.record(event);
     this.gateway.broadcast(event);
   }
 
-  /** Busca membros com assinatura habilitada para a área e envia e-mail. */
   private async sendEmailsForArea(
     areaSlug: string,
     buildEmail: (to: string) => Promise<{ subject: string; html: string }>,
@@ -94,4 +117,9 @@ export class NotificationsListener {
       this.logger.warn(`sendEmailsForArea(${areaSlug}) failed: ${e.message}`);
     }
   }
+}
+
+function fmtDate(d?: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }

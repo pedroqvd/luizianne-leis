@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { VotesService } from '../services/votes.service';
 
 @ApiTags('votes')
@@ -8,11 +8,24 @@ export class VotesController {
   constructor(private readonly service: VotesService) {}
 
   @Get()
-  list(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiQuery({ name: 'absencesOnly', required: false, description: 'true para listar só ausências' })
+  list(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('absencesOnly') absencesOnly?: string,
+  ) {
     return this.service.list(
-      limit ? Number(limit) : 100,
+      limit ? Number(limit) : 200,
       offset ? Number(offset) : 0,
+      absencesOnly === 'true',
     );
+  }
+
+  @Get('stats/:deputy_id')
+  stats(@Param('deputy_id', ParseIntPipe) id: number) {
+    return this.service.stats(id);
   }
 
   @Get(':proposition_id')
