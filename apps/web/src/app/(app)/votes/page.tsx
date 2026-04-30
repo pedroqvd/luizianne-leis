@@ -2,7 +2,7 @@ import { api } from '@/lib/api';
 import Link from 'next/link';
 import { Vote, ExternalLink, CheckCircle, XCircle, MinusCircle, HelpCircle, UserX, AlertTriangle } from 'lucide-react';
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 interface VoteRow {
   id: number;

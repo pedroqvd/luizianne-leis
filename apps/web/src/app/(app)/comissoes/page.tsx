@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 import { Users, Calendar, ExternalLink, Building2 } from 'lucide-react';
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 interface Commission {
   id: number;

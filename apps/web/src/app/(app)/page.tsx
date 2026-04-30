@@ -5,7 +5,7 @@ import { TypeBreakdown } from '@/components/TypeBreakdown';
 import { ProductivityHeatmap } from '@/components/ProductivityHeatmap';
 import { TrendingUp, FileText, Users, Award, AlertCircle, GitBranch } from 'lucide-react';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 interface Summary {
   deputy: { name: string; party: string; state: string; photo_url?: string };
