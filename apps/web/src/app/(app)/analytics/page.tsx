@@ -56,7 +56,7 @@ export default async function AnalyticsPage() {
 
       {/* KPI summary */}
       {approval.overall && (
-        <section className="grid gap-4 sm:grid-cols-3">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
@@ -96,7 +96,7 @@ export default async function AnalyticsPage() {
       {approval.by_status.length > 0 && (
         <section className="stat-card space-y-3">
           <h2 className="text-sm font-semibold text-slate-700">Status das proposições</h2>
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {approval.by_status.map((r) => (
               <li
                 key={r.status}
@@ -114,7 +114,7 @@ export default async function AnalyticsPage() {
       {categories.length > 0 && (
         <section className="stat-card space-y-3">
           <h2 className="text-sm font-semibold text-slate-700">Áreas temáticas (NLP)</h2>
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map((c) => {
               const pct = approval.overall ? Math.round((c.total / approval.overall.total) * 100) : 0;
               return (

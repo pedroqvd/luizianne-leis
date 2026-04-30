@@ -35,7 +35,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8 animate-fade-in-up">
       {/* Deputy header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         {data?.deputy.photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -65,7 +65,7 @@ export default async function DashboardPage() {
       )}
 
       {/* KPI cards */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="stat-card">
           <div className="flex items-start justify-between">
             <div>

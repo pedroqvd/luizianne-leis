@@ -56,7 +56,7 @@ export default async function VotesPage() {
 
       {/* Stats */}
       {votes.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="stat-card text-center py-4">
             <CheckCircle className="w-5 h-5 text-green-500 mx-auto mb-1" />
             <p className="text-2xl font-bold text-green-600">{stats.sim}</p>
@@ -106,7 +106,7 @@ export default async function VotesPage() {
                     <p className="text-xs text-slate-400">{fmt(v.date)}</p>
                     <Link
                       href={`/propositions/${v.proposition_id}`}
-                      className="text-[11px] text-brand-600 hover:text-brand-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity mt-1 inline-block"
+                      className="text-[11px] text-brand-600 hover:text-brand-700 font-medium mt-1 inline-block sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
                     >
                       Ver PL →
                     </Link>
