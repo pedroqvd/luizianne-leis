@@ -27,7 +27,7 @@ export default function LoginPage() {
 
     setLoading(false);
     if (error) {
-      setError('Não foi possível enviar o link. Verifique o e-mail e tente novamente.');
+      setError(`Erro: ${error.message} (${error.status ?? 'sem status'})`);
     } else {
       setSent(true);
     }
