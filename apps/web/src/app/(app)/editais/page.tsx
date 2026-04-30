@@ -6,7 +6,7 @@ import {
   DollarSign, TrendingUp, Filter,
 } from 'lucide-react';
 
-export const revalidate = 120;
+export const dynamic = 'force-dynamic';
 
 interface Edital {
   id: number;

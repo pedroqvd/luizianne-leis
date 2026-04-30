@@ -6,7 +6,7 @@ import {
   Building2, CheckCircle2,
 } from 'lucide-react';
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 interface PropositionListResponse {
   rows: Array<{

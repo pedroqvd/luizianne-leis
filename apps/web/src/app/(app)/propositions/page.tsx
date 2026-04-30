@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 interface PropositionListResponse {
   rows: Array<{

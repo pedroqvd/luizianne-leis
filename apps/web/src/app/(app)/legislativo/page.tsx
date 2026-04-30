@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { FileText, ExternalLink, Search, Filter, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 30;
 

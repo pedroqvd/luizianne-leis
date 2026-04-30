@@ -15,7 +15,7 @@ interface NetworkData {
   edges: { source: number; target: number; weight: number }[];
 }
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const STATUS_COLORS: Record<string, string> = {
   'Aprovado':       'bg-green-50 text-green-700 border-green-200',

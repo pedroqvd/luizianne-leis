@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 import { Activity, Bell, FileText, Vote, UserCheck } from 'lucide-react';
 
-export const revalidate = 15;
+export const dynamic = 'force-dynamic';
 
 interface NotificationRow {
   id: number;
