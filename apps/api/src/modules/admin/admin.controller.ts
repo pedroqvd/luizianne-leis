@@ -1,12 +1,14 @@
 import { Controller, ForbiddenException, Headers, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
+import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
+import { LawsAlertService } from '../ingestion/laws-alert.service';
 import { ClassifierService } from '../nlp/classifier.service';
 import { EditaisIngestion } from '../editais/editais.ingestion';
+import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
 
 /**
- * Endpoints administrativos. Protegidos por header `x-admin-token` comparado com
- * `ADMIN_TOKEN` (via .env). Em produção, substituir por auth/JWT/Cognito.
+ * Endpoints administrativos. Protegidos por header `x-admin-token`.
  */
 @ApiTags('admin')
 @Controller('admin')
@@ -15,6 +17,9 @@ export class AdminController {
     private readonly queue: IngestionQueue,
     private readonly classifier: ClassifierService,
     private readonly editaisIngestion: EditaisIngestion,
+    private readonly emendasIngestion: EmendasOrcIngestion,
+    private readonly absence: AbsenceTrackerService,
+    private readonly laws: LawsAlertService,
   ) {}
 
   @Post('ingest')
@@ -37,6 +42,33 @@ export class AdminController {
   async triggerEditais(@Headers('x-admin-token') token?: string) {
     this.assertAuth(token);
     const result = await this.editaisIngestion.ingest();
+    return { ok: true, ...result };
+  }
+
+  /** Ingere emendas orçamentárias do Portal da Transparência */
+  @Post('ingest-emendas-orc')
+  async triggerEmendasOrc(@Headers('x-admin-token') token?: string) {
+    this.assertAuth(token);
+    const result = await this.emendasIngestion.ingest();
+    return { ok: true, ...result };
+  }
+
+  /** Verifica ausências nos últimos N dias (padrão 7) */
+  @Post('check-absences')
+  async triggerAbsences(
+    @Headers('x-admin-token') token?: string,
+    @Query('days') days?: string,
+  ) {
+    this.assertAuth(token);
+    const result = await this.absence.checkRecentAbsences(days ? Number(days) : 7);
+    return { ok: true, ...result };
+  }
+
+  /** Verifica leis aprovadas na última semana e envia alertas */
+  @Post('check-laws')
+  async triggerLawsAlert(@Headers('x-admin-token') token?: string) {
+    this.assertAuth(token);
+    const result = await this.laws.checkApprovedLaws();
     return { ok: true, ...result };
   }
 

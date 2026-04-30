@@ -71,7 +71,15 @@ export interface CamaraVoting {
   data?: string;
   dataHoraRegistro?: string;
   proposicaoObjeto?: string;
-  tipoVotacao?: string;
+  tipoVotacao?: string;           // 'Nominal' | 'Simbólica' | 'Secreta'
+  proposicao_?: {
+    id: number;
+    siglaTipo?: string;
+    numero?: number;
+    ano?: number;
+    ementa?: string;
+    uri?: string;
+  };
 }
 
 export interface CamaraVote {
@@ -243,6 +251,37 @@ export class CamaraApiClient {
     );
     const items = data?.dados ?? [];
     const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
+    return { items, hasNext };
+  }
+
+  /**
+   * Lista TODAS as votações realizadas em um intervalo de datas.
+   * Usado pelo rastreador de ausências para detectar nominais em que
+   * a deputada não registrou voto.
+   */
+  async listNominalVotings(
+    dataInicio: string,
+    dataFim: string,
+    page = 1,
+    itens = 200,
+  ): Promise<{ items: CamaraVoting[]; hasNext: boolean }> {
+    const { data } = await this.http.get<CamaraEnvelope<CamaraVoting[]>>(
+      '/votacoes',
+      {
+        params: {
+          dataInicio,
+          dataFim,
+          pagina: page,
+          itens,
+          ordem: 'DESC',
+          ordenarPor: 'dataHoraRegistro',
+        },
+      },
+    );
+    const items = (data?.dados ?? []).filter(
+      (v) => v.tipoVotacao === 'Nominal',
+    );
+    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next');
     return { items, hasNext };
   }
 
