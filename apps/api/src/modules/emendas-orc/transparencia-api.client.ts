@@ -76,25 +76,22 @@ export class TransparenciaApiClient {
     const nomeAutor = process.env.DEPUTY_TRANSPARENCIA_NAME ?? 'LUIZIANNE LINS';
     const codigoAutor = process.env.DEPUTY_TRANSPARENCIA_CODE ?? '';
 
-    const params: Record<string, any> = {
-      ano,
-      pagina: page,
-      quantidade: size,
-    };
+    // Try by codigoAutor first, then fall back to nomeAutor
+    const strategies: Record<string, any>[] = codigoAutor
+      ? [{ ano, pagina: page, quantidade: size, codigoAutor }, { ano, pagina: page, quantidade: size, nomeAutor }]
+      : [{ ano, pagina: page, quantidade: size, nomeAutor }];
 
-    if (codigoAutor) {
-      params.codigoAutor = codigoAutor;
-    } else {
-      params.nomeAutor = nomeAutor;
+    for (const params of strategies) {
+      try {
+        const { data } = await this.http.get<TransparenciaEmenda[]>('/emendas', { params });
+        const results = Array.isArray(data) ? data : [];
+        this.logger.log(`listEmendas(${ano} p${page}) params=${JSON.stringify(params)} → ${results.length} results`);
+        if (results.length > 0) return results;
+      } catch (e: any) {
+        this.logger.warn(`listEmendas(${ano} p${page}) params=${JSON.stringify(params)} error: ${e.message}`);
+      }
     }
-
-    try {
-      const { data } = await this.http.get<TransparenciaEmenda[]>('/emendas', { params });
-      return Array.isArray(data) ? data : [];
-    } catch (e: any) {
-      this.logger.warn(`listEmendas(${ano} p${page}) error: ${e.message}`);
-      return [];
-    }
+    return [];
   }
 
   /** Itera todas as páginas de um ano. */
