@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -9,16 +8,18 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/';
 
   if (code) {
-    const cookieStore = await cookies();
+    const redirectTo = new URL(next, origin);
+    const response = NextResponse.redirect(redirectTo);
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() { return cookieStore.getAll(); },
+          getAll() { return request.cookies.getAll(); },
           setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              response.cookies.set(name, value, options ?? {}),
             );
           },
         },
@@ -31,7 +32,6 @@ export async function GET(request: NextRequest) {
       const admin = createAdminClient();
       const adminEmail = process.env.ADMIN_EMAIL;
 
-      // Check if this is first user or matches ADMIN_EMAIL
       const { count } = await admin
         .from('app_users')
         .select('*', { count: 'exact', head: true });
@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       const isAdminEmail = adminEmail && data.user.email === adminEmail;
       const role = isFirstUser || isAdminEmail ? 'admin' : 'member';
 
-      // Upsert user profile
       await admin.from('app_users').upsert({
         id: data.user.id,
         email: data.user.email!,
@@ -48,7 +47,6 @@ export async function GET(request: NextRequest) {
         role,
       }, { onConflict: 'id', ignoreDuplicates: false });
 
-      // Ensure all subscription rows exist for new users
       const { data: areas } = await admin.from('notification_areas').select('id');
       if (areas?.length) {
         await admin.from('user_subscriptions').upsert(
@@ -57,9 +55,9 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return response;
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(new URL('/login?error=auth', origin));
 }
