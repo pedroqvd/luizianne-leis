@@ -3,7 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { InviteForm } from './InviteForm';
 import { SubscriptionToggles } from './SubscriptionToggles';
+import { MemberActions } from './MemberActions';
 import { Users, Shield, Mail } from 'lucide-react';
+
+export const dynamic = 'force-dynamic';
 
 interface AppUser {
   id: string;
@@ -111,6 +114,9 @@ export default async function EquipePage() {
                       {a.label}
                     </th>
                   ))}
+                  <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wide">
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -141,6 +147,13 @@ export default async function EquipePage() {
                         />
                       </td>
                     ))}
+                    <td className="px-6 py-4 text-right">
+                      <MemberActions
+                        userId={m.id}
+                        currentRole={m.role}
+                        isSelf={m.id === user.id}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
