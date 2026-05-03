@@ -6,11 +6,7 @@ import { LawsAlertService } from '../ingestion/laws-alert.service';
 import { ClassifierService } from '../nlp/classifier.service';
 import { EditaisIngestion } from '../editais/editais.ingestion';
 import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
-import { TransparenciaApiClient } from '../emendas-orc/transparencia-api.client';
 
-/**
- * Endpoints administrativos. Protegidos por header `x-admin-token`.
- */
 @ApiTags('admin')
 @Controller('admin')
 export class AdminController {
@@ -21,7 +17,6 @@ export class AdminController {
     private readonly emendasIngestion: EmendasOrcIngestion,
     private readonly absence: AbsenceTrackerService,
     private readonly laws: LawsAlertService,
-    private readonly transparencia: TransparenciaApiClient,
   ) {}
 
   @Post('ingest')
@@ -47,7 +42,6 @@ export class AdminController {
     return { ok: true, ...result };
   }
 
-  /** Ingere emendas orçamentárias do Portal da Transparência */
   @Post('ingest-emendas-orc')
   async triggerEmendasOrc(@Headers('x-admin-token') token?: string) {
     this.assertAuth(token);
@@ -55,7 +49,6 @@ export class AdminController {
     return { ok: true, ...result };
   }
 
-  /** Verifica ausências nos últimos N dias (padrão 7) */
   @Post('check-absences')
   async triggerAbsences(
     @Headers('x-admin-token') token?: string,
@@ -66,42 +59,11 @@ export class AdminController {
     return { ok: true, ...result };
   }
 
-  /** Verifica leis aprovadas na última semana e envia alertas */
   @Post('check-laws')
   async triggerLawsAlert(@Headers('x-admin-token') token?: string) {
     this.assertAuth(token);
     const result = await this.laws.checkApprovedLaws();
     return { ok: true, ...result };
-  }
-
-  /** Diagnóstico: retorna resposta bruta do Portal da Transparência */
-  @Post('debug-transparencia')
-  async debugTransparencia(
-    @Headers('x-admin-token') token?: string,
-    @Query('ano') ano?: string,
-    @Query('nome') nome?: string,
-    @Query('codigo') codigo?: string,
-  ) {
-    this.assertAuth(token);
-    const year = ano ? Number(ano) : new Date().getFullYear();
-    const results: any[] = [];
-
-    const strategies = [
-      ...(codigo ? [{ codigoAutor: codigo }] : []),
-      { nomeAutor: nome ?? process.env.DEPUTY_TRANSPARENCIA_NAME ?? 'LUIZIANNE LINS' },
-      { nomeAutor: 'LUIZIANNE LINS LOPES' },
-      { nomeAutor: 'LUIZIANNE' },
-    ];
-
-    for (const extra of strategies) {
-      const raw = await (this.transparencia as any).http?.get('/emendas', {
-        params: { ano: year, pagina: 1, quantidade: 3, ...extra },
-      }).then((r: any) => ({ params: extra, status: r.status, count: Array.isArray(r.data) ? r.data.length : 'not-array', sample: Array.isArray(r.data) ? r.data[0] : r.data }))
-        .catch((e: any) => ({ params: extra, error: e.response?.status ?? e.message }));
-      results.push(raw);
-    }
-
-    return { year, results };
   }
 
   private assertAuth(token?: string) {

@@ -4,13 +4,14 @@ import { TransparenciaApiClient } from './transparencia-api.client';
 import { EmendasOrcRepository } from './emendas-orc.repository';
 import { CacheService } from '../../infra/cache/cache.service';
 
-/**
- * Ingere emendas parlamentares do Portal da Transparência.
- * Roda semanalmente (sexta às 03h) pois os dados do portal
- * são atualizados com frequência semanal pelo Tesouro Nacional.
- *
- * Ingerir os últimos 4 anos garante histórico completo da legislatura.
- */
+function parseBrNumber(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return v;
+  const str = String(v).trim().replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
 @Injectable()
 export class EmendasOrcIngestion {
   private readonly logger = new Logger(EmendasOrcIngestion.name);
@@ -22,7 +23,7 @@ export class EmendasOrcIngestion {
     private readonly cache: CacheService,
   ) {}
 
-  @Cron(process.env.EMENDAS_ORC_CRON ?? '0 3 * * 5')   // sexta 03h
+  @Cron(process.env.EMENDAS_ORC_CRON ?? '0 3 * * 5')
   async run() {
     if (!this.client.available) {
       this.logger.warn('TransparenciaApiClient não disponível — configure TRANSPARENCIA_API_KEY');
@@ -60,10 +61,10 @@ export class EmendasOrcIngestion {
             subfuncao: e.codigoSubfuncao ?? null,
             descricao_subfuncao: e.descricaoSubfuncao ?? null,
             descricao: e.descricao ?? null,
-            valor_dotacao: e.valorDotacaoAtualizada ?? null,
-            valor_empenhado: e.valorEmpenhado ?? null,
-            valor_liquidado: e.valorLiquidado ?? null,
-            valor_pago: e.valorPago ?? null,
+            valor_dotacao: parseBrNumber(e.valorDotacaoAtualizada),
+            valor_empenhado: parseBrNumber(e.valorEmpenhado),
+            valor_liquidado: parseBrNumber(e.valorLiquidado),
+            valor_pago: parseBrNumber(e.valorPago),
             orgao_orcamentario: e.nomeOrgaoSuperior ?? e.nomeOrgao ?? null,
             municipio: e.nomeMunicipio ?? null,
             uf: e.siglaUf ?? null,
