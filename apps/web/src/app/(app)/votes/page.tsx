@@ -204,7 +204,7 @@ export default async function VotesPage({
                   <div className="flex-shrink-0 text-right">
                     <p className="text-xs text-slate-400">{fmt(v.date)}</p>
                     <Link
-                      href={`/propositions/${v.proposition_id}`}
+                      href={`/legislativo/${v.proposition_id}`}
                       className="text-[11px] text-brand-600 hover:text-brand-700 font-medium mt-1 inline-block sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
                     >
                       Ver PL →

@@ -33,12 +33,12 @@ export class AbsenceTrackerService {
    * Verifica ausências nos últimos `days` dias.
    * Chamado pelo scheduler (default: diário, olha 2 dias para cobrir sessões noturnas).
    */
-  async checkRecentAbsences(days = 2): Promise<{ checked: number; absences: number }> {
+  async checkRecentAbsences(days = 2): Promise<{ checked: number; absences: number; deputy_found: boolean }> {
     const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
-      this.logger.warn('Target deputy not found in DB — run full sync first');
-      return { checked: 0, absences: 0 };
+      this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
+      return { checked: 0, absences: 0, deputy_found: false };
     }
 
     const dataFim = toDate(new Date());
@@ -69,7 +69,7 @@ export class AbsenceTrackerService {
     }
 
     this.logger.log(`absence check done — ${checked} votações, ${absences} ausências`);
-    return { checked, absences };
+    return { checked, absences, deputy_found: true };
   }
 
   private async processVoting(

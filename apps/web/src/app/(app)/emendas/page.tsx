@@ -399,7 +399,7 @@ export default async function EmendasPage({
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     )}
-                    <Link href={`/propositions/${p.id}`}
+                    <Link href={`/legislativo/${p.id}`}
                       className="text-xs text-brand-700 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
                       Detalhes →
                     </Link>
