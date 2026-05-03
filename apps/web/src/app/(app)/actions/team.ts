@@ -24,7 +24,7 @@ export async function inviteTeamMember(email: string, name: string) {
   const admin = await requireAdmin();
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://luizianne-leis.vercel.app'}/auth/callback`,
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? `https://${process.env.VERCEL_URL}`}/auth/callback`,
   });
   if (error) return { error: error.message };
 
