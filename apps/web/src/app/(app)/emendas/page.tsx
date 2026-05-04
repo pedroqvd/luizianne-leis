@@ -1,20 +1,11 @@
 import { api } from '@/lib/api';
 import Link from 'next/link';
 import {
-  Landmark, DollarSign, FileText, Scale, ExternalLink,
-  Info, TrendingUp, AlertCircle, MapPin, BarChart3,
-  Building2, CheckCircle2,
+  DollarSign, ExternalLink,
+  Info, MapPin, BarChart3,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
-
-interface PropositionListResponse {
-  rows: Array<{
-    id: number; type: string; number: number | null; year: number | null;
-    title: string | null; status: string | null; presented_at: string | null; url: string | null;
-  }>;
-  total: number;
-}
 
 interface EmendasOrcStats {
   total: number;
@@ -83,13 +74,12 @@ export default async function EmendasPage({
   if (searchParams.search) qs.set('search', searchParams.search);
   qs.set('limit', '60');
 
-  const [orcList, orcStats, byYear, byFuncao, byUf, legData] = await Promise.all([
+  const [orcList, orcStats, byYear, byFuncao, byUf] = await Promise.all([
     api<{ rows: EmendasOrcRow[]; total: number }>(`/emendas-orc?${qs}`).catch(() => ({ rows: [], total: 0 })),
     api<EmendasOrcStats>('/emendas-orc/stats').catch(() => null),
     api<ByYear[]>('/emendas-orc/by-year').catch(() => [] as ByYear[]),
     api<ByFuncao[]>('/emendas-orc/by-funcao').catch(() => [] as ByFuncao[]),
     api<ByUf[]>('/emendas-orc/by-uf').catch(() => [] as ByUf[]),
-    api<PropositionListResponse>('/propositions?type=PEC&limit=30').catch(() => ({ rows: [], total: 0 })),
   ]);
 
   const hasOrcData = (orcStats?.total ?? 0) > 0;
@@ -101,7 +91,7 @@ export default async function EmendasPage({
       <div>
         <h1 className="page-title">Emendas</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Emendas orçamentárias e legislativas — execução, destinos e valores
+          Emendas orçamentárias — execução, destinos e valores
         </p>
       </div>
 
@@ -326,95 +316,6 @@ export default async function EmendasPage({
             </div>
           </>
         )}
-      </section>
-
-      {/* ── Emendas Legislativas ── */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-50 rounded-xl border border-purple-100">
-            <Scale className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-slate-800">Emendas Legislativas</h2>
-            <p className="text-xs text-slate-500">Emendas a PLs, PECs, substitutivos e destaques apresentados</p>
-          </div>
-        </div>
-
-        {/* Tipos de emenda */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'Emenda Constitucional (PEC)', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: Scale },
-            { label: 'Emenda a Projeto de Lei',      color: 'bg-indigo-50 border-indigo-200 text-indigo-700', icon: FileText },
-            { label: 'Substitutivo',                  color: 'bg-blue-50 border-blue-200 text-blue-700',     icon: FileText },
-            { label: 'Destaque',                      color: 'bg-sky-50 border-sky-200 text-sky-700',        icon: CheckCircle2 },
-          ].map(({ label, color, icon: Icon }) => (
-            <div key={label} className={`rounded-xl border px-4 py-3 flex items-center gap-2 text-sm font-medium ${color}`}>
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* PECs apresentadas */}
-        <div className="stat-card overflow-hidden !p-0">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-purple-500" />
-              PECs apresentadas
-            </span>
-            <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full font-medium">
-              {legData.total} registros
-            </span>
-          </div>
-
-          {legData.rows.length > 0 ? (
-            <ul className="divide-y divide-slate-50">
-              {legData.rows.map((p) => (
-                <li key={p.id} className="px-5 py-3.5 flex items-start gap-3 hover:bg-slate-50 transition-colors group">
-                  <div className="mt-0.5 p-1.5 bg-purple-50 rounded-lg flex-shrink-0">
-                    <FileText className="w-3.5 h-3.5 text-purple-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-100 px-1.5 py-0.5 rounded-md">
-                        {p.type} {p.number}/{p.year}
-                      </span>
-                      {p.status && (
-                        <span className="text-[11px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">
-                          {p.status}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-700 mt-1 line-clamp-2 leading-snug">{p.title ?? '—'}</p>
-                    {p.presented_at && (
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {new Date(p.presented_at).toLocaleDateString('pt-BR')}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {p.url && (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-700 hover:bg-brand-50 transition-colors">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                    <Link href={`/legislativo/${p.id}`}
-                      className="text-xs text-brand-700 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
-                      Detalhes →
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="py-12 text-center">
-              <AlertCircle className="w-7 h-7 text-slate-200 mx-auto mb-3" />
-              <p className="text-sm text-slate-400">Nenhuma PEC encontrada.</p>
-              <p className="text-xs text-slate-300 mt-1">Rode a ingestão para popular os dados.</p>
-            </div>
-          )}
-        </div>
       </section>
 
       {/* Info */}
