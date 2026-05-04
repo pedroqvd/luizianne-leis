@@ -4,6 +4,14 @@ import { TransparenciaApiClient } from './transparencia-api.client';
 import { EmendasOrcRepository } from './emendas-orc.repository';
 import { CacheService } from '../../infra/cache/cache.service';
 
+/**
+ * Ingere emendas parlamentares do Portal da Transparência.
+ * Roda semanalmente (sexta às 03h) pois os dados do portal
+ * são atualizados com frequência semanal pelo Tesouro Nacional.
+ *
+ * Ingerir os últimos 4 anos garante histórico completo da legislatura.
+ */
+/** Converte número no formato BR ("1.234,56") para float, ou retorna null */
 function parseBrNumber(v: any): number | null {
   if (v === null || v === undefined) return null;
   if (typeof v === 'number') return v;
