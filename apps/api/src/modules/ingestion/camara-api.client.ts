@@ -171,6 +171,7 @@ export class CamaraApiClient {
       {
         params: {
           idDeputadoAutor: deputyId,
+          dataApresentacaoInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
           ordem: 'DESC',
           ordenarPor: 'id',
           pagina: page,
@@ -242,6 +243,7 @@ export class CamaraApiClient {
       {
         params: {
           idDeputadoRelator: deputyId,
+          dataApresentacaoInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
           ordem: 'DESC',
           ordenarPor: 'id',
           pagina: page,
@@ -288,6 +290,12 @@ export class CamaraApiClient {
   async getDeputyCommissions(deputyId: number): Promise<CamaraDeputyOrgao[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyOrgao[]>>(
       `/deputados/${deputyId}/orgaos`,
+      {
+        params: {
+          dataInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
+          itens: 100,
+        },
+      },
     );
     return data?.dados ?? [];
   }

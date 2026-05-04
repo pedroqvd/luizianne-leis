@@ -54,7 +54,9 @@ export class EmendasOrcIngestion {
     let upserted = 0;
 
     const currentYear = new Date().getFullYear();
-    const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+    const startYear = Number(process.env.EMENDAS_ORC_START_YEAR ?? 2015);
+    const years: number[] = [];
+    for (let y = currentYear; y >= startYear; y--) years.push(y);
 
     for (const ano of years) {
       this.logger.log(`ingesting emendas ano=${ano}`);
