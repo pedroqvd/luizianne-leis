@@ -25,7 +25,8 @@ export default async function LegislativoPage({
 }: {
   searchParams: { type?: string; year?: string; status?: string; search?: string; page?: string };
 }) {
-  const page = Math.max(1, Number(searchParams.page ?? 1));
+  const parsedPage = Number(searchParams.page ?? 1);
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
   const offset = (page - 1) * PAGE_SIZE;
 
   const qs = new URLSearchParams();
@@ -37,9 +38,15 @@ export default async function LegislativoPage({
   qs.set('offset', String(offset));
 
   let data: PropositionListResponse = { rows: [], total: 0 };
-  try { data = await api<PropositionListResponse>(`/propositions?${qs}`); } catch {}
+  try {
+    const resp = await api<PropositionListResponse>(`/propositions?${qs}`);
+    data = {
+      rows: Array.isArray(resp?.rows) ? resp.rows : [],
+      total: Number.isFinite(resp?.total) ? resp.total : 0,
+    };
+  } catch {}
 
-  const totalPages = Math.ceil(data.total / PAGE_SIZE);
+  const totalPages = data.total > 0 ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   function pageUrl(p: number) {
     const q = new URLSearchParams({ ...Object.fromEntries(qs), page: String(p) });
