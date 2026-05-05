@@ -17,8 +17,9 @@ interface EmendasOrcStats {
 
 interface EmendasOrcRow {
   id: number; ano: number;
-  codigo_emenda: string | null; tipo_emenda: string | null;
+  codigo_emenda: string | null; numero_emenda: string | null; tipo_emenda: string | null;
   descricao: string | null; descricao_funcao: string | null; descricao_subfuncao: string | null;
+  funcao: string | null; subfuncao: string | null;
   valor_dotacao: string | null; valor_empenhado: string | null;
   valor_liquidado: string | null; valor_pago: string | null;
   orgao_orcamentario: string | null; municipio: string | null; uf: string | null;
@@ -46,9 +47,9 @@ function execPct(pago?: string | null, dotacao?: string | null) {
   return Math.min(100, Math.round((p / d) * 100));
 }
 
-function transparenciaUrl(codigoEmenda: string | null, ano: number) {
+function transparenciaUrl(codigoEmenda: string | null) {
   if (!codigoEmenda) return null;
-  return `https://portaldatransparencia.gov.br/emendas/consulta?paginacaoSimples=true&tamanhoPagina=10&offset=0&ordenarPor=localizador&direcaoOrdenacao=asc&codigoEmenda=${encodeURIComponent(codigoEmenda)}&ano=${ano}`;
+  return `https://portaldatransparencia.gov.br/emendas/${encodeURIComponent(codigoEmenda)}`;
 }
 
 export default async function EmendasPage({
@@ -297,7 +298,8 @@ export default async function EmendasPage({
                   {orcList.rows.map((e) => {
                     const exec = execPct(e.valor_pago, e.valor_dotacao);
                     const execEmp = execPct(e.valor_empenhado, e.valor_dotacao);
-                    const portalHref = transparenciaUrl(e.codigo_emenda, e.ano);
+                    const portalHref = transparenciaUrl(e.codigo_emenda);
+                    const funcionalProg = [e.funcao, e.subfuncao].filter(Boolean).join('.');
                     return (
                       <li key={e.id} className="px-5 py-4 hover:bg-slate-50 transition-colors group">
                         <div className="flex items-start gap-3">
@@ -308,6 +310,11 @@ export default async function EmendasPage({
                             {/* Tags */}
                             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                               <span className="text-xs font-bold text-slate-700">{e.ano}</span>
+                              {(e.numero_emenda || e.codigo_emenda) && (
+                                <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  Nº {e.numero_emenda ?? e.codigo_emenda}
+                                </span>
+                              )}
                               {e.tipo_emenda && (
                                 <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-medium">
                                   {e.tipo_emenda}
@@ -334,9 +341,24 @@ export default async function EmendasPage({
                             <p className="text-sm text-slate-700 leading-snug line-clamp-2">
                               {e.descricao ?? e.orgao_orcamentario ?? '—'}
                             </p>
-                            {e.descricao_subfuncao && (
-                              <p className="text-xs text-slate-400 mt-0.5">{e.descricao_subfuncao}</p>
-                            )}
+
+                            {/* Beneficiário + subfunção */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                              {e.orgao_orcamentario && (
+                                <p className="text-xs text-slate-500">
+                                  <span className="text-slate-400">Beneficiário: </span>
+                                  <span className="font-medium">{e.orgao_orcamentario}</span>
+                                </p>
+                              )}
+                              {e.descricao_subfuncao && (
+                                <p className="text-xs text-slate-400">{e.descricao_subfuncao}</p>
+                              )}
+                              {funcionalProg && (
+                                <p className="text-xs text-slate-400 font-mono">
+                                  <span className="text-slate-300">Func. Prog.: </span>{funcionalProg}
+                                </p>
+                              )}
+                            </div>
 
                             {/* Barras de execução */}
                             <div className="mt-2.5 space-y-1.5">
@@ -360,11 +382,8 @@ export default async function EmendasPage({
                               </div>
                             </div>
 
-                            {/* Código + dotação */}
+                            {/* Dotação */}
                             <div className="flex items-center gap-3 mt-1.5">
-                              {e.codigo_emenda && (
-                                <span className="text-[10px] text-slate-400 font-mono">{e.codigo_emenda}</span>
-                              )}
                               <span className="text-[11px] text-slate-400">
                                 dotação: <span className="font-medium text-slate-600">{fmtBRL(e.valor_dotacao, true)}</span>
                               </span>

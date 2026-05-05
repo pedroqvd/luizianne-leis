@@ -162,6 +162,22 @@ export class PncpApiClient {
   }
 }
 
+/** Builds PNCP website URL from numeroControlePNCP.
+ *  Format: "{cnpj14}-{sequencial}-{numero}/{ano}" → https://pncp.gov.br/app/editais/{cnpj14}/{ano}/{sequencial}
+ */
+function buildPncpUrl(item: PncpItem): string {
+  const id = item.numeroControlePNCP ?? '';
+  const cnpjRaw = (item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
+  const match = id.match(/^(\d+)-(\d+)-/);
+  const sequencial = match?.[2];
+  const ano = item.anoCompra;
+  if (cnpjRaw && sequencial && ano) {
+    return `https://pncp.gov.br/app/editais/${cnpjRaw}/${ano}/${sequencial}`;
+  }
+  // Fallback: replace "/" with path separator (don't encode it)
+  return `https://pncp.gov.br/app/editais/${id.replace(/\//g, '/')}`;
+}
+
 export function pncpToInternal(item: PncpItem) {
   return {
     pncp_id: item.numeroControlePNCP,
@@ -186,7 +202,7 @@ export function pncpToInternal(item: PncpItem) {
     data_proposta_fim: item.dataEncerramentoProposta ?? null,
     data_publicacao: item.dataPublicacaoPncp?.slice(0, 10) ?? null,
     situacao: deriveSituacao(item),
-    url_fonte: `https://pncp.gov.br/app/editais/${encodeURIComponent(item.numeroControlePNCP)}`,
+    url_fonte: buildPncpUrl(item),
     url_edital: item.linkSistemaOrigem ?? null,
     payload: item,
   };

@@ -3,6 +3,7 @@ import axios, { AxiosInstance } from 'axios';
 
 export interface TransparenciaEmenda {
   codigoEmenda?: string;
+  localizador?: string;          // número da emenda legível, ex: "13600000014748"
   ano?: number;
   nomeAutor?: string;
   tipoEmenda?: string;           // Individual | Bancada | Comissão
@@ -10,6 +11,10 @@ export interface TransparenciaEmenda {
   descricaoFuncao?: string;
   codigoSubfuncao?: string;
   descricaoSubfuncao?: string;
+  codigoProgramatica?: string;   // funcional programática completo
+  descricaoProgramatica?: string;
+  codigoGND?: string;            // Grupo de Natureza de Despesa
+  descricaoGND?: string;
   nomeOrgaoSuperior?: string;
   nomeOrgao?: string;
   descricao?: string;
