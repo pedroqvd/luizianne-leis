@@ -12,6 +12,11 @@ export class CommissionsController {
     return this.service.list();
   }
 
+  @Get('target')
+  forTarget() {
+    return this.service.forTarget();
+  }
+
   @Get('deputy/:id')
   forDeputy(@Param('id', ParseIntPipe) id: number) {
     return this.service.forDeputy(id);

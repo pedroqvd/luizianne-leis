@@ -12,4 +12,8 @@ export class CommissionsService {
   forDeputy(deputyId: number) {
     return this.repo.listForDeputy(deputyId);
   }
+
+  forTarget() {
+    return this.repo.listForTarget();
+  }
 }

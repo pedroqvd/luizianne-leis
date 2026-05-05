@@ -27,6 +27,21 @@ export class CommissionsRepository {
     return rows[0];
   }
 
+  async listForTarget() {
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const { rows } = await this.pool.query(
+      `SELECT c.id AS commission_id, c.name AS commission_name, c.sigla AS commission_sigla,
+              dc.id, dc.role, dc.started_at, dc.ended_at
+         FROM deputy_commissions dc
+         JOIN commissions c ON c.id = dc.commission_id
+         JOIN deputies d ON d.id = dc.deputy_id
+         WHERE d.external_id = $1
+         ORDER BY dc.started_at DESC NULLS LAST`,
+      [externalId],
+    );
+    return rows;
+  }
+
   async listForDeputy(deputyId: number) {
     const { rows } = await this.pool.query(
       `SELECT c.id, c.name, c.sigla, dc.role, dc.started_at, dc.ended_at
