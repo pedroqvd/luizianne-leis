@@ -43,6 +43,7 @@ export class EmendasOrcRepository {
           orgao_orcamentario, municipio, uf, situacao, payload)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        ON CONFLICT (codigo_emenda) DO UPDATE SET
+         numero_emenda    = EXCLUDED.numero_emenda,
          valor_dotacao    = EXCLUDED.valor_dotacao,
          valor_empenhado  = EXCLUDED.valor_empenhado,
          valor_liquidado  = EXCLUDED.valor_liquidado,

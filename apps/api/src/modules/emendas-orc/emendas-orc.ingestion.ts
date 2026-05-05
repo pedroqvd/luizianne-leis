@@ -65,6 +65,7 @@ export class EmendasOrcIngestion {
           await this.repo.upsert({
             ano: e.ano ?? ano,
             codigo_emenda: e.codigoEmenda ?? null,
+            numero_emenda: e.localizador ?? null,
             tipo_emenda: e.tipoEmenda ?? null,
             funcao: e.codigoFuncao ?? null,
             descricao_funcao: e.descricaoFuncao ?? null,
