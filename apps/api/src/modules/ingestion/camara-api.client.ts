@@ -273,17 +273,16 @@ export class CamaraApiClient {
         params: {
           dataInicio,
           dataFim,
+          tipoVotacao: 'Nominal',
           pagina: page,
           itens,
-          ordem: 'DESC',
+          ordem: 'ASC',
           ordenarPor: 'dataHoraRegistro',
         },
       },
     );
-    const items = (data?.dados ?? []).filter(
-      (v) => v.tipoVotacao === 'Nominal',
-    );
-    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next');
+    const items = data?.dados ?? [];
+    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
     return { items, hasNext };
   }
 
