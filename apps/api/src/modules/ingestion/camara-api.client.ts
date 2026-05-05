@@ -257,6 +257,34 @@ export class CamaraApiClient {
   }
 
   /**
+   * Proposições apresentadas por um órgão (comissão) específico.
+   * Usado para ingerir propostas da Comissão Mista e outras comissões
+   * onde a deputada exerce presidência.
+   */
+  async listCommissionPropositions(
+    siglaOrgao: string,
+    page = 1,
+    itens = 100,
+  ): Promise<{ items: CamaraPropositionListItem[]; hasNext: boolean }> {
+    const { data } = await this.http.get<CamaraEnvelope<CamaraPropositionListItem[]>>(
+      '/proposicoes',
+      {
+        params: {
+          siglaOrgaoAutor: siglaOrgao,
+          dataApresentacaoInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
+          ordem: 'DESC',
+          ordenarPor: 'id',
+          pagina: page,
+          itens,
+        },
+      },
+    );
+    const items = data?.dados ?? [];
+    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
+    return { items, hasNext };
+  }
+
+  /**
    * Lista TODAS as votações realizadas em um intervalo de datas.
    * Usado pelo rastreador de ausências para detectar nominais em que
    * a deputada não registrou voto.

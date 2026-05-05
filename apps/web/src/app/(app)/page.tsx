@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/StatCard';
 import { ProductivityChart } from '@/components/ProductivityChart';
@@ -66,7 +67,7 @@ export default async function DashboardPage() {
 
       {/* KPI cards */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="stat-card">
+        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Total</p>
@@ -77,8 +78,8 @@ export default async function DashboardPage() {
               <TrendingUp className="w-5 h-5 text-brand-700" />
             </div>
           </div>
-        </div>
-        <div className="stat-card">
+        </Link>
+        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Autorias</p>
@@ -89,8 +90,8 @@ export default async function DashboardPage() {
               <FileText className="w-5 h-5 text-blue-600" />
             </div>
           </div>
-        </div>
-        <div className="stat-card">
+        </Link>
+        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Coautorias</p>
@@ -101,8 +102,8 @@ export default async function DashboardPage() {
               <Users className="w-5 h-5 text-purple-600" />
             </div>
           </div>
-        </div>
-        <div className="stat-card">
+        </Link>
+        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Relatorias</p>
@@ -113,7 +114,7 @@ export default async function DashboardPage() {
               <Award className="w-5 h-5 text-amber-600" />
             </div>
           </div>
-        </div>
+        </Link>
       </section>
 
       {/* Heatmap de produtividade */}

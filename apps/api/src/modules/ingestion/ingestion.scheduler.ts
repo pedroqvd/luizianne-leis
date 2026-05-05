@@ -21,12 +21,12 @@ export class IngestionScheduler {
     await this.queue.enqueueFullSync();
   }
 
-  /** Verificação de ausências em votações nominais — diariamente às 06h */
-  @Cron(process.env.ABSENCE_CRON ?? '0 6 * * *')
+  /** Verificação de ausências em votações nominais — a cada 30 min (mesmo ritmo do sync) */
+  @Cron(process.env.ABSENCE_CRON ?? CronExpression.EVERY_30_MINUTES)
   async absenceTick() {
     this.logger.log('cron tick — checking absences in nominal votes');
     try {
-      const result = await this.absence.checkRecentAbsences(2);
+      const result = await this.absence.checkRecentAbsences(1);
       this.logger.log(`absence check: ${result.checked} votações, ${result.absences} ausências`);
     } catch (e: any) {
       this.logger.error(`absence check failed: ${e.message}`);

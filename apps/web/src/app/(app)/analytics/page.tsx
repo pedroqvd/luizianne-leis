@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import Link from 'next/link';
 import { CoauthorshipNetwork } from '@/components/CoauthorshipNetwork';
 import { BarChart3, CheckCircle, TrendingUp, Users, AlertCircle } from 'lucide-react';
 
@@ -98,12 +99,14 @@ export default async function AnalyticsPage() {
           <h2 className="text-sm font-semibold text-slate-700">Status das proposições</h2>
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {approval.by_status.map((r) => (
-              <li
-                key={r.status}
-                className={`flex justify-between items-center text-sm px-3 py-2 rounded-lg border ${statusColor(r.status)}`}
-              >
-                <span className="font-medium">{r.status}</span>
-                <span className="font-bold text-base">{r.total}</span>
+              <li key={r.status}>
+                <Link
+                  href={`/legislativo?status=${encodeURIComponent(r.status)}`}
+                  className={`flex justify-between items-center text-sm px-3 py-2 rounded-lg border transition-opacity hover:opacity-80 ${statusColor(r.status)}`}
+                >
+                  <span className="font-medium">{r.status}</span>
+                  <span className="font-bold text-base">{r.total}</span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -118,7 +121,8 @@ export default async function AnalyticsPage() {
             {categories.map((c) => {
               const pct = approval.overall ? Math.round((c.total / approval.overall.total) * 100) : 0;
               return (
-                <li key={c.id} className="flex flex-col gap-1.5 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <Link key={c.id} href={`/legislativo?search=${encodeURIComponent(c.label)}`}
+                  className="flex flex-col gap-1.5 p-3 bg-slate-50 rounded-lg border border-slate-100 hover:bg-slate-100 hover:border-slate-200 transition-colors">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-700 font-medium truncate">{c.label}</span>
                     <span className="font-bold text-slate-900 ml-2 flex-shrink-0">{c.total}</span>
@@ -127,7 +131,7 @@ export default async function AnalyticsPage() {
                     <div className="h-full bg-brand-500 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="text-[10px] text-slate-400">{pct}% do total</span>
-                </li>
+                </Link>
               );
             })}
           </ul>

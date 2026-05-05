@@ -1,5 +1,5 @@
 import { Controller, ForbiddenException, Headers, HttpCode, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
 import { LawsAlertService } from '../ingestion/laws-alert.service';
@@ -70,6 +70,8 @@ export class AdminController {
    */
   @Post('check-absences-historical')
   @HttpCode(202)
+  @ApiQuery({ name: 'from', required: false, type: String, example: '2015-02-01', description: 'Data início (padrão: INGEST_DATA_INICIO)' })
+  @ApiQuery({ name: 'to',   required: false, type: String, example: '2026-12-31', description: 'Data fim (padrão: hoje)' })
   async triggerHistoricalAbsences(
     @Headers('x-admin-token') token?: string,
     @Query('from') from?: string,

@@ -80,6 +80,16 @@ export class IngestionService {
     totalProps += relatorStats.propositions;
     totalEvents += relatorStats.events;
 
+    // Fase 5: ingerir proposições de comissões onde a deputada exerce presidência
+    // Configurar via INGESTION_COMMISSION_SIGLAS (ex: "CMCVM,CMMC") no Render
+    const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+    for (const sigla of commissionSiglas) {
+      const commStats = await this.syncCommissionPropositions(deputy.id, sigla);
+      totalProps += commStats.propositions;
+      totalEvents += commStats.events;
+    }
+
     await this.cache.invalidate('propositions:*');
     await this.cache.invalidate('analytics:*');
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
@@ -118,6 +128,43 @@ export class IngestionService {
     }
 
     this.logger.log(`relator sync: ${totalProps} propositions as rapporteur`);
+    return { propositions: totalProps, events: totalEvents };
+  }
+
+  private async syncCommissionPropositions(
+    deputyId: number,
+    siglaOrgao: string,
+  ): Promise<{ propositions: number; events: number }> {
+    let totalProps = 0;
+    let totalEvents = 0;
+    let page = 1;
+
+    this.logger.log(`syncing commission proposals for ${siglaOrgao}`);
+
+    while (true) {
+      const { items, hasNext } = await this.api.listCommissionPropositions(siglaOrgao, page, 100);
+      if (!items.length) break;
+
+      const batches = chunk(items, this.concurrency);
+      for (const batch of batches) {
+        const results = await Promise.allSettled(
+          batch.map((p: any) => this.syncProposition(p.id, deputyId)),
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            totalProps += 1;
+            totalEvents += r.value.eventsEmitted;
+          } else {
+            this.logger.warn(`commission proposition sync failed: ${r.reason?.message ?? r.reason}`);
+          }
+        }
+      }
+
+      if (!hasNext) break;
+      page += 1;
+    }
+
+    this.logger.log(`commission sync (${siglaOrgao}): ${totalProps} propositions`);
     return { propositions: totalProps, events: totalEvents };
   }
 
