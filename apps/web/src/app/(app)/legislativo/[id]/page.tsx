@@ -106,7 +106,7 @@ export default async function LegislativoDetailPage({ params }: { params: { id: 
       )}
 
       {/* Authors */}
-      {data.authors.length > 0 && (
+      {(data.authors?.length ?? 0) > 0 && (
         <section className="stat-card space-y-3">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-400" />
@@ -132,10 +132,10 @@ export default async function LegislativoDetailPage({ params }: { params: { id: 
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-700">
-            Tramitação ({data.proceedings.length} eventos)
+            Tramitação ({data.proceedings?.length ?? 0} eventos)
           </h2>
         </div>
-        {data.proceedings.length > 0 ? (
+        {(data.proceedings?.length ?? 0) > 0 ? (
           <ol className="relative border-l-2 border-slate-100 ml-2 space-y-0">
             {data.proceedings.map((p, idx) => (
               <li key={p.id} className="ml-5 pb-5 last:pb-0">
