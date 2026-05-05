@@ -57,15 +57,8 @@ export default async function VotesPage({
 }) {
   const absencesOnly = searchParams.filter === 'ausencias';
 
-  const [votes, allVotes] = await Promise.all([
-    api<VoteRow[]>(`/votes?limit=300${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]),
-    absencesOnly
-      ? api<VoteRow[]>('/votes?limit=1').catch(() => [] as VoteRow[])  // só precisa do stats abaixo
-      : Promise.resolve([] as VoteRow[]),
-  ]);
+  const votes = await api<VoteRow[]>(`/votes?limit=300${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]);
 
-  // Stats sempre vêm do total (sem filtro de ausência)
-  const statsVotes = absencesOnly ? allVotes : votes;
   const sim     = votes.filter((v) => v.vote === 'Sim').length;
   const nao     = votes.filter((v) => ['Não', 'Nao'].includes(v.vote)).length;
   const abst    = votes.filter((v) => ['Abstenção', 'Abstencao'].includes(v.vote)).length;

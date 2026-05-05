@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import Link from 'next/link';
 import { Activity, Bell, FileText, Vote, UserCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,12 @@ export default async function AtividadePage() {
                     <p className="text-sm text-slate-700 mt-0.5 line-clamp-2">
                       {n.payload?.title ?? n.payload?.status ?? `${n.aggregate_type} #${n.aggregate_id}`}
                     </p>
+                    {n.aggregate_type === 'proposition' && (
+                      <Link href={`/legislativo/${n.aggregate_id}`}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-medium mt-0.5 inline-block">
+                        Ver proposição →
+                      </Link>
+                    )}
                   </div>
                   <time className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0 mt-0.5">
                     {new Date(n.created_at).toLocaleString('pt-BR', {

@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Headers, Post, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Headers, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
@@ -57,6 +57,33 @@ export class AdminController {
     this.assertAuth(token);
     const result = await this.absence.checkRecentAbsences(days ? Number(days) : 7);
     return { ok: true, ...result };
+  }
+
+  /**
+   * Retroage toda a história de ausências em votações nominais.
+   * Processa mês a mês desde INGEST_DATA_INICIO (2015-02-01 por padrão) até hoje.
+   * Pode levar vários minutos — execute via curl/Swagger em background.
+   *
+   * Query params opcionais:
+   *   from=YYYY-MM-DD  (padrão: INGEST_DATA_INICIO)
+   *   to=YYYY-MM-DD    (padrão: hoje)
+   */
+  @Post('check-absences-historical')
+  @HttpCode(202)
+  async triggerHistoricalAbsences(
+    @Headers('x-admin-token') token?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.assertAuth(token);
+    // Run in background — return immediately with 202 Accepted
+    this.absence.checkAllHistoricalAbsences(from, to).catch(() => undefined);
+    return {
+      ok: true,
+      message: 'Historical absence backfill started in background. Check server logs for progress.',
+      from: from ?? process.env.INGEST_DATA_INICIO ?? '2015-02-01',
+      to: to ?? new Date().toISOString().slice(0, 10),
+    };
   }
 
   @Post('check-laws')

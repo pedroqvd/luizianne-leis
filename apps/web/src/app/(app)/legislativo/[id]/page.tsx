@@ -3,11 +3,23 @@ import Link from 'next/link';
 import { ArrowLeft, ExternalLink, FileText, Users, GitBranch, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface Detail {
-  id: number; type: string; number: number | null; year: number | null;
+  id: number; external_id: number | null; type: string; number: number | null; year: number | null;
   title: string | null; summary: string | null; status: string | null;
   url: string | null; presented_at: string | null;
   authors: { id: number; name: string; party: string; state: string; role: string }[];
   proceedings: { id: number; date: string | null; description: string | null; status_at_time: string | null }[];
+}
+
+function camaraUrl(detail: Pick<Detail, 'url' | 'external_id'>): string | null {
+  if (detail.external_id) {
+    return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${detail.external_id}`;
+  }
+  if (detail.url) {
+    const m = detail.url.match(/\/proposicoes\/(\d+)/);
+    if (m) return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${m[1]}`;
+    return detail.url;
+  }
+  return null;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -77,12 +89,12 @@ export default async function LegislativoDetailPage({ params }: { params: { id: 
           )}
         </div>
         <h1 className="text-lg font-semibold text-slate-900 leading-snug">{data.title ?? '—'}</h1>
-        {data.url && (
-          <a href={data.url} target="_blank" rel="noopener noreferrer"
+        {(() => { const href = camaraUrl(data); return href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-800 font-medium">
             <ExternalLink className="w-3.5 h-3.5" /> Ver na Câmara dos Deputados
           </a>
-        )}
+        ) : null; })()}
       </div>
 
       {/* Ementa */}

@@ -1,5 +1,5 @@
 import { api } from '@/lib/api';
-import { Users, Calendar, ExternalLink, Building2 } from 'lucide-react';
+import { Users, Calendar, Building2 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +26,7 @@ function fmt(d?: string | null) {
 export default async function ComissoesPage() {
   let commissions: Commission[] = [];
   try {
-    // forDeputy endpoint requires internal ID — use the target deputy via summary
-    const summary = await api<{ deputy: { id: number } }>('/analytics/summary');
-    commissions = await api<Commission[]>(`/commissions/deputy/${summary.deputy.id}`);
+    commissions = await api<Commission[]>('/commissions/target');
   } catch {}
 
   const ativas = commissions.filter(isActive);

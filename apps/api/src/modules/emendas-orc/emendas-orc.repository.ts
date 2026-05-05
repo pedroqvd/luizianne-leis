@@ -68,7 +68,7 @@ export class EmendasOrcRepository {
 
     if (filter.ano)    { where.push(`ano = $${i++}`);                              params.push(filter.ano); }
     if (filter.tipo)   { where.push(`tipo_emenda = $${i++}`);                      params.push(filter.tipo); }
-    if (filter.uf)     { where.push(`uf = $${i++}`);                               params.push(filter.uf); }
+    if (filter.uf)     { where.push(`UPPER(uf) = UPPER($${i++})`);                  params.push(filter.uf); }
     if (filter.search) { where.push(`(descricao ILIKE $${i} OR municipio ILIKE $${i} OR orgao_orcamentario ILIKE $${i})`); params.push(`%${filter.search}%`); i++; }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';

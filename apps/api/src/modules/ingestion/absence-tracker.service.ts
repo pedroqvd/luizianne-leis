@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
-import { CamaraApiClient } from './camara-api.client';
+import { CamaraApiClient, camaraPropositionWebUrl } from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
 import { VoteRepository } from '../core/repositories/vote.repository';
@@ -11,7 +11,7 @@ import { EventBus } from '../../shared/event-bus';
  * Detecta ausências da deputada em votações nominais.
  *
  * Fluxo:
- *  1. Busca TODAS as votações nominais do período via GET /votacoes
+ *  1. Busca TODAS as votações nominais do período via GET /votacoes?tipoVotacao=Nominal
  *  2. Para cada votação, pega a lista de votos (GET /votacoes/{id}/votos)
  *  3. Se o external_id da deputada não aparecer → registra voto='Ausente'
  *  4. Emite evento DEPUTY_ABSENT para notificações
@@ -34,15 +34,24 @@ export class AbsenceTrackerService {
    * Chamado pelo scheduler (default: diário, olha 2 dias para cobrir sessões noturnas).
    */
   async checkRecentAbsences(days = 2): Promise<{ checked: number; absences: number; deputy_found: boolean }> {
+    const dataFim = toDate(new Date());
+    const dataInicio = toDate(daysAgo(days));
+    return this.checkAbsencesInRange(dataInicio, dataFim);
+  }
+
+  /**
+   * Verifica ausências em um intervalo explícito de datas.
+   */
+  async checkAbsencesInRange(
+    dataInicio: string,
+    dataFim: string,
+  ): Promise<{ checked: number; absences: number; deputy_found: boolean }> {
     const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
       this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
       return { checked: 0, absences: 0, deputy_found: false };
     }
-
-    const dataFim = toDate(new Date());
-    const dataInicio = toDate(daysAgo(days));
 
     this.logger.log(`checking absences from ${dataInicio} to ${dataFim}`);
 
@@ -68,8 +77,86 @@ export class AbsenceTrackerService {
       page++;
     }
 
-    this.logger.log(`absence check done — ${checked} votações, ${absences} ausências`);
+    this.logger.log(`absence check done (${dataInicio}→${dataFim}) — ${checked} votações, ${absences} ausências`);
     return { checked, absences, deputy_found: true };
+  }
+
+  /**
+   * Retroage toda a história mês a mês desde INGEST_DATA_INICIO até hoje.
+   * Processa em janelas mensais para não sobrecarregar a API da Câmara.
+   * Cada janela aguarda 1 segundo entre si para respeitar rate limits.
+   */
+  async checkAllHistoricalAbsences(
+    fromDate?: string,
+    toDate_?: string,
+  ): Promise<{ total_checked: number; total_absences: number; months_processed: number; deputy_found: boolean }> {
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const deputy = await this.deputies.findByExternalId(externalId);
+    if (!deputy) {
+      this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
+      return { total_checked: 0, total_absences: 0, months_processed: 0, deputy_found: false };
+    }
+
+    const start = new Date(fromDate ?? process.env.INGEST_DATA_INICIO ?? '2015-02-01');
+    const end = new Date(toDate_ ?? toDate(new Date()));
+
+    this.logger.log(`Starting historical absence backfill from ${toDate(start)} to ${toDate(end)}`);
+
+    let total_checked = 0;
+    let total_absences = 0;
+    let months_processed = 0;
+
+    // Iterate month by month
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+
+    while (cursor <= end) {
+      const monthStart = toDate(cursor);
+      // Last day of this month
+      const monthEndDate = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+      const monthEnd = toDate(monthEndDate < end ? monthEndDate : end);
+
+      this.logger.log(`Processing month ${monthStart} → ${monthEnd}`);
+
+      let page = 1;
+      let monthChecked = 0;
+      let monthAbsences = 0;
+
+      while (true) {
+        const { items, hasNext } = await this.api.listNominalVotings(monthStart, monthEnd, page);
+        if (!items.length) break;
+
+        for (const voting of items) {
+          monthChecked++;
+          try {
+            const absent = await this.processVoting(voting, deputy.id, externalId);
+            if (absent) monthAbsences++;
+          } catch (e: any) {
+            this.logger.warn(`absence check failed for voting ${voting.id}: ${e.message}`);
+          }
+        }
+
+        if (!hasNext) break;
+        page++;
+        // Brief pause between pages within a month
+        await sleep(500);
+      }
+
+      this.logger.log(`Month ${monthStart}: ${monthChecked} votações, ${monthAbsences} ausências`);
+
+      total_checked += monthChecked;
+      total_absences += monthAbsences;
+      months_processed++;
+
+      // Advance to next month
+      cursor.setMonth(cursor.getMonth() + 1);
+      // Pause between months to be respectful of the API
+      await sleep(1000);
+    }
+
+    this.logger.log(
+      `Historical backfill complete — ${months_processed} meses, ${total_checked} votações, ${total_absences} ausências`,
+    );
+    return { total_checked, total_absences, months_processed, deputy_found: true };
   }
 
   private async processVoting(
@@ -77,18 +164,14 @@ export class AbsenceTrackerService {
     deputyId: number,
     deputyExternalId: number,
   ): Promise<boolean> {
-    // Busca todos os votos desta votação
     const allVotes = await this.api.getVoteDetails(voting.id);
 
-    // Verifica se a deputada está na lista
     const voted = allVotes.some((v) => v.deputado_?.id === deputyExternalId);
     if (voted) return false;
 
-    // Deputada não votou — registra ausência
     const propExtId = voting.proposicao_?.id;
     if (!propExtId) return false;
 
-    // Garante que a proposição existe no banco (upsert mínimo)
     const prop = await this.ensureProposition(voting.proposicao_);
     if (!prop) return false;
 
@@ -126,7 +209,6 @@ export class AbsenceTrackerService {
     let prop = await this.props.findByExternalId(p.id);
     if (prop) return prop;
 
-    // Tenta buscar detalhes completos da proposição
     try {
       const detail = await this.api.getProposition(p.id);
       if (detail) {
@@ -139,7 +221,7 @@ export class AbsenceTrackerService {
           summary: (detail as any).ementaDetalhada ?? detail.ementa ?? null,
           status: (detail as any).statusProposicao?.descricaoSituacao ?? null,
           keywords: (detail as any).keywords ?? null,
-          url: detail.uri ?? null,
+          url: camaraPropositionWebUrl(detail.id),
           presented_at: (detail as any).dataApresentacao ?? null,
           payload: detail,
         });
@@ -147,7 +229,6 @@ export class AbsenceTrackerService {
       }
     } catch {}
 
-    // Fallback: upsert mínimo com os dados da votação
     try {
       const result = await this.props.upsert({
         external_id: p.id,
@@ -158,7 +239,7 @@ export class AbsenceTrackerService {
         summary: null,
         status: null,
         keywords: null,
-        url: p.uri ?? null,
+        url: camaraPropositionWebUrl(p.id),
         presented_at: null,
         payload: p,
       });
@@ -177,4 +258,8 @@ function daysAgo(n: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

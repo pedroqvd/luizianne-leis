@@ -273,17 +273,16 @@ export class CamaraApiClient {
         params: {
           dataInicio,
           dataFim,
+          tipoVotacao: 'Nominal',
           pagina: page,
           itens,
-          ordem: 'DESC',
+          ordem: 'ASC',
           ordenarPor: 'dataHoraRegistro',
         },
       },
     );
-    const items = (data?.dados ?? []).filter(
-      (v) => v.tipoVotacao === 'Nominal',
-    );
-    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next');
+    const items = data?.dados ?? [];
+    const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
     return { items, hasNext };
   }
 
@@ -311,6 +310,15 @@ export function extractDeputyIdFromUri(uri?: string): number | null {
   if (!uri) return null;
   const m = uri.match(/\/deputados\/(\d+)/);
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * Retorna a URL pública da proposição no site da Câmara dos Deputados.
+ * O campo `uri` da API retorna um endpoint JSON (dadosabertos.camara.leg.br)
+ * que não é acessível por usuários. A URL correta é a ficha de tramitação.
+ */
+export function camaraPropositionWebUrl(id: number): string {
+  return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${id}`;
 }
 
 /** Mapeia o `tipo`/`proponente`/`ordem` do autor para nosso enum interno. */
