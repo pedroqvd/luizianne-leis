@@ -17,11 +17,10 @@ export default function SetPasswordPage() {
   const [error, setError]       = useState('');
   const [done, setDone]         = useState(false);
 
-  const supabase = createClient();
-
   // Confirm there is an active session (set by the callback page).
   // If not, the invite link may have been opened in a different browser/tab.
   useEffect(() => {
+    const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         // Ensure app_users record exists (safety net if callback action failed)
@@ -50,6 +49,7 @@ export default function SetPasswordPage() {
     setLoading(true);
     setError('');
 
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password });
 
     setLoading(false);

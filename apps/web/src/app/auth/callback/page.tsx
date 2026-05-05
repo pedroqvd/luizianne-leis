@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
  * redirect to /auth/set-password for invite flows, or / for everything else.
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { setupUser } from '@/app/auth/actions';
@@ -25,6 +25,14 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import type { EmailOtpType } from '@supabase/supabase-js';
 
 export default function CallbackPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <CallbackHandler />
+    </Suspense>
+  );
+}
+
+function CallbackHandler() {
   const [errorMsg, setErrorMsg] = useState('');
   const searchParams = useSearchParams();
 
@@ -145,6 +153,10 @@ export default function CallbackPage() {
     );
   }
 
+  return <LoadingScreen />;
+}
+
+function LoadingScreen() {
   return (
     <div className="min-h-screen bg-sidebar-bg flex items-center justify-center p-4">
       <div className="relative w-full max-w-sm animate-fade-in-up text-center">
