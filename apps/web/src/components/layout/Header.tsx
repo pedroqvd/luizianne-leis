@@ -17,11 +17,9 @@ export function MobileHeader() {
 
   return (
     <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-      <Link href="/" className="flex items-center gap-2">
-        <div className="w-7 h-7 bg-brand-700 rounded-lg flex items-center justify-center">
-          <span className="text-white text-xs font-bold">L</span>
-        </div>
-        <span className="font-semibold text-slate-900 text-sm">Luizianne Lins</span>
+      <Link href="/" className="flex items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-7 w-auto" />
       </Link>
 
       <div className="flex items-center gap-1">

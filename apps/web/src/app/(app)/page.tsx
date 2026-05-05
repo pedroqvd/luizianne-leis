@@ -45,8 +45,9 @@ export default async function DashboardPage() {
             className="w-16 h-16 rounded-2xl border-2 border-white shadow-md object-cover flex-shrink-0"
           />
         ) : (
-          <div className="w-16 h-16 rounded-2xl bg-brand-700 flex items-center justify-center flex-shrink-0 shadow-md">
-            <span className="text-white text-2xl font-bold">L</span>
+          <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-md p-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="w-full h-full object-contain" />
           </div>
         )}
         <div>
