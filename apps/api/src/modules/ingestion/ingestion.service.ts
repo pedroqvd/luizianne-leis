@@ -5,6 +5,7 @@ import {
   CamaraApiClient,
   extractDeputyIdFromUri,
   mapAuthorRole,
+  camaraPropositionWebUrl,
 } from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
@@ -154,7 +155,7 @@ export class IngestionService {
       summary: remote.ementaDetalhada ?? remote.ementa ?? null,
       status: remote.statusProposicao?.descricaoSituacao ?? null,
       keywords: remote.keywords ?? null,
-      url: remote.uri ?? null,
+      url: camaraPropositionWebUrl(remote.id),
       presented_at: remote.dataApresentacao ?? null,
       payload: remote,
     });

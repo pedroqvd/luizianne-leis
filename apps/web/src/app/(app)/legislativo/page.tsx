@@ -6,12 +6,28 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 30;
 
+interface PropositionRow {
+  id: number; external_id: number | null; type: string; number: number | null; year: number | null;
+  title: string | null; status: string | null; presented_at: string | null; url: string | null;
+}
+
 interface PropositionListResponse {
-  rows: Array<{
-    id: number; type: string; number: number | null; year: number | null;
-    title: string | null; status: string | null; presented_at: string | null; url: string | null;
-  }>;
+  rows: PropositionRow[];
   total: number;
+}
+
+/** Sempre retorna a URL correta do site da Câmara. Corrige dados antigos que
+ *  tinham o endpoint da API (dadosabertos.camara.leg.br) em vez da página web. */
+function camaraUrl(row: Pick<PropositionRow, 'url' | 'external_id'>): string | null {
+  if (row.external_id) {
+    return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${row.external_id}`;
+  }
+  if (row.url) {
+    const m = row.url.match(/\/proposicoes\/(\d+)/);
+    if (m) return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${m[1]}`;
+    return row.url;
+  }
+  return null;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -120,13 +136,13 @@ export default async function LegislativoPage({
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {p.url && (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" title="Ver na Câmara"
+                    {(() => { const href = camaraUrl(p); return href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer" title="Ver na Câmara"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-brand-700 hover:bg-brand-50 transition-colors"
                         onClick={(e) => e.stopPropagation()}>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                    )}
+                    ) : null; })()}
                     <Link href={`/legislativo/${p.id}`}
                       className="text-xs text-brand-700 hover:text-brand-800 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
                       Detalhes →
@@ -203,12 +219,12 @@ export default async function LegislativoPage({
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {p.url && (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer"
+                    {(() => { const href = camaraUrl(p); return href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-brand-700 hover:bg-brand-50 transition-colors">
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                    )}
+                    ) : null; })()}
                     <Link href={`/legislativo/${p.id}`}
                       className="text-xs text-brand-700 font-medium sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
                       Detalhes →

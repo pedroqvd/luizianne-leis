@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
-import { CamaraApiClient } from './camara-api.client';
+import { CamaraApiClient, camaraPropositionWebUrl } from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
 import { VoteRepository } from '../core/repositories/vote.repository';
@@ -139,7 +139,7 @@ export class AbsenceTrackerService {
           summary: (detail as any).ementaDetalhada ?? detail.ementa ?? null,
           status: (detail as any).statusProposicao?.descricaoSituacao ?? null,
           keywords: (detail as any).keywords ?? null,
-          url: detail.uri ?? null,
+          url: camaraPropositionWebUrl(detail.id),
           presented_at: (detail as any).dataApresentacao ?? null,
           payload: detail,
         });
@@ -158,7 +158,7 @@ export class AbsenceTrackerService {
         summary: null,
         status: null,
         keywords: null,
-        url: p.uri ?? null,
+        url: camaraPropositionWebUrl(p.id),
         presented_at: null,
         payload: p,
       });

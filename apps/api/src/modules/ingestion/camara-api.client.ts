@@ -313,6 +313,15 @@ export function extractDeputyIdFromUri(uri?: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/**
+ * Retorna a URL pública da proposição no site da Câmara dos Deputados.
+ * O campo `uri` da API retorna um endpoint JSON (dadosabertos.camara.leg.br)
+ * que não é acessível por usuários. A URL correta é a ficha de tramitação.
+ */
+export function camaraPropositionWebUrl(id: number): string {
+  return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${id}`;
+}
+
 /** Mapeia o `tipo`/`proponente`/`ordem` do autor para nosso enum interno. */
 export function mapAuthorRole(
   tipo?: string,
