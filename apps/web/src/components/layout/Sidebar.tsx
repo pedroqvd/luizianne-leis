@@ -47,13 +47,10 @@ export function Sidebar({ isAdmin = false }: Props) {
     <aside className="hidden lg:flex flex-col w-[240px] min-h-screen bg-sidebar-bg border-r border-white/5 flex-shrink-0">
       {/* Brand */}
       <div className="px-5 py-6 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-brand-700 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-            <span className="text-white text-base font-bold">L</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-white text-sm font-semibold truncate">Luizianne Lins</p>
-            <p className="text-sidebar-text text-xs truncate">Deputada Federal · PT-CE</p>
+        <div className="flex items-center">
+          <div className="bg-white rounded-lg px-2 py-1.5 shadow">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-8 w-auto" />
           </div>
         </div>
       </div>

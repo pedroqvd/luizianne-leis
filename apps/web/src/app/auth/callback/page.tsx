@@ -129,10 +129,10 @@ function CallbackHandler() {
       <div className="min-h-screen bg-sidebar-bg flex items-center justify-center p-4">
         <div className="relative w-full max-w-sm animate-fade-in-up">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-700 rounded-2xl mb-4 shadow-lg">
-              <span className="text-white text-2xl font-bold">L</span>
+            <div className="inline-block bg-white rounded-2xl px-6 py-4 shadow-lg mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-12 w-auto" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Luizianne Lins</h1>
             <p className="text-slate-400 text-sm mt-1">Plataforma da Equipe</p>
           </div>
           <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
@@ -160,8 +160,9 @@ function LoadingScreen() {
   return (
     <div className="min-h-screen bg-sidebar-bg flex items-center justify-center p-4">
       <div className="relative w-full max-w-sm animate-fade-in-up text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-700 rounded-2xl mb-6 shadow-lg">
-          <span className="text-white text-2xl font-bold">L</span>
+        <div className="inline-block bg-white rounded-2xl px-6 py-4 shadow-lg mb-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-12 w-auto" />
         </div>
         <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-3">
           <Loader2 className="w-7 h-7 text-brand-700 animate-spin" />
