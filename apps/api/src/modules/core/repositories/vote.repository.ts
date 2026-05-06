@@ -44,14 +44,15 @@ export class VoteRepository {
     is_absence?: boolean;
     payload?: any;
   }): Promise<{ isNew: boolean }> {
-    const { rowCount } = await this.pool.query(
+    const { rows } = await this.pool.query(
       `INSERT INTO votes (proposition_id, deputy_id, vote, session_id, date, is_absence, payload)
        VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (proposition_id, deputy_id, session_id) DO UPDATE
          SET vote       = EXCLUDED.vote,
              date       = EXCLUDED.date,
              is_absence = EXCLUDED.is_absence,
-             payload    = EXCLUDED.payload`,
+             payload    = EXCLUDED.payload
+       RETURNING (xmax = 0) AS is_new`,
       [
         v.proposition_id,
         v.deputy_id,
@@ -62,7 +63,7 @@ export class VoteRepository {
         v.payload ?? null,
       ],
     );
-    return { isNew: (rowCount ?? 0) > 0 };
+    return { isNew: rows[0]?.is_new === true };
   }
 
   async list(limit = 100, offset = 0, absencesOnly = false) {
