@@ -59,8 +59,8 @@ export async function toggleSubscription(userId: string, areaId: number, enabled
 
 export async function removeTeamMember(userId: string) {
   const admin = await requireAdmin();
-  await admin.from('app_users').delete().eq('id', userId);
   await admin.auth.admin.deleteUser(userId);
+  await admin.from('app_users').delete().eq('id', userId);
   revalidatePath('/admin/equipe');
 }
 
