@@ -60,10 +60,11 @@ export function CommandPalette() {
     setActiveIdx(0);
 
     // Fetch search from API
+    const controller = new AbortController();
     startTransition(async () => {
       try {
         const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-        const res = await fetch(`${base}/api/propositions?search=${encodeURIComponent(query)}&limit=5`);
+        const res = await fetch(`${base}/api/propositions?search=${encodeURIComponent(query)}&limit=5`, { signal: controller.signal });
         if (!res.ok) return;
         const data = await res.json();
         const apiResults: Result[] = (data.rows ?? []).map((p: any) => ({
@@ -76,6 +77,7 @@ export function CommandPalette() {
         setResults([...matched, ...apiResults]);
       } catch {}
     });
+    return () => controller.abort();
   }, [query]);
 
   function navigate(href: string) {
