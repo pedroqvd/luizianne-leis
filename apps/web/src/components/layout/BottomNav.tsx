@@ -6,14 +6,16 @@ import { LayoutDashboard, ScrollText, Landmark, FileText, Activity } from 'lucid
 import { cn } from '@/lib/utils';
 
 const items = [
-  { href: '/',            label: 'Início',      icon: LayoutDashboard },
-  { href: '/legislativo', label: 'Legislativo', icon: ScrollText },
-  { href: '/emendas',     label: 'Emendas',     icon: Landmark },
-  { href: '/editais',     label: 'Editais',     icon: FileText },
-  { href: '/atividade',   label: 'Atividade',   icon: Activity },
+  { href: '/',            label: 'Início',      icon: LayoutDashboard, slug: null },
+  { href: '/legislativo', label: 'Legislativo', icon: ScrollText,      slug: 'legislativo' },
+  { href: '/emendas',     label: 'Emendas',     icon: Landmark,        slug: 'emendas' },
+  { href: '/editais',     label: 'Editais',     icon: FileText,        slug: 'editais' },
+  { href: '/atividade',   label: 'Atividade',   icon: Activity,        slug: 'atividade' },
 ];
 
-export function BottomNav() {
+interface Props { allowedTabs?: string[] | null }
+
+export function BottomNav({ allowedTabs = null }: Props) {
   const pathname = usePathname();
 
   function isActive(href: string) {
@@ -24,7 +26,7 @@ export function BottomNav() {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 bottom-nav-safe">
       <div className="flex">
-        {items.map(({ href, label, icon: Icon }) => (
+        {items.filter(({ slug }) => slug === null || allowedTabs === null || allowedTabs.includes(slug)).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

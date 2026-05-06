@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createDemanda, updateDemanda, type DemandaInput } from '@/app/(app)/actions/demandas';
+import { createDemandaAndReturn, updateDemanda, type DemandaInput } from '@/app/(app)/actions/demandas';
 import { X, Loader2 } from 'lucide-react';
 
 export const CATEGORIES = [
@@ -27,7 +27,7 @@ export const STATUSES = [
 interface Member { id: string; name: string | null; email: string }
 
 interface Props {
-  onClose: () => void;
+  onClose: (created?: any) => void;
   members: Member[];
   initial?: (DemandaInput & { id: number }) | null;
 }
@@ -68,10 +68,11 @@ export function DemandaModal({ onClose, members, initial }: Props) {
       try {
         if (initial) {
           await updateDemanda(initial.id, data);
+          onClose();
         } else {
-          await createDemanda(data);
+          const created = await createDemandaAndReturn(data);
+          onClose(created);
         }
-        onClose();
       } catch (e: any) {
         setError(e.message ?? 'Erro ao salvar.');
       }

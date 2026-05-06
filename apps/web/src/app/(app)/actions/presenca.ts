@@ -31,6 +31,7 @@ export async function createPresenceRecord(data: {
 export async function deletePresenceRecord(id: number) {
   await currentUserId();
   const admin = createAdminClient();
-  await admin.from('presence_records').delete().eq('id', id);
+  const { error } = await admin.from('presence_records').delete().eq('id', id);
+  if (error) throw new Error(error.message);
   revalidatePath('/presenca');
 }

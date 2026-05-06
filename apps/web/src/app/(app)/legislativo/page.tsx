@@ -54,15 +54,18 @@ export default async function LegislativoPage({
   qs.set('offset', String(offset));
 
   let data: PropositionListResponse = { rows: [], total: 0 };
-  try {
-    const resp = await api<PropositionListResponse>(`/propositions?${qs}`);
-    data = {
-      rows: Array.isArray(resp?.rows) ? resp.rows : [],
-      total: Number.isFinite(resp?.total) ? resp.total : 0,
-    };
-  } catch {}
+  let legData: PropositionListResponse = { rows: [], total: 0 };
 
-  const legData = await api<PropositionListResponse>('/propositions?type=PEC&limit=30').catch(() => ({ rows: [], total: 0 }));
+  [data, legData] = await Promise.all([
+    api<PropositionListResponse>(`/propositions?${qs}`)
+      .then(resp => ({
+        rows:  Array.isArray(resp?.rows)         ? resp.rows  : [],
+        total: Number.isFinite(resp?.total) ? resp.total : 0,
+      }))
+      .catch(() => ({ rows: [], total: 0 })),
+    api<PropositionListResponse>('/propositions?type=PEC&limit=30')
+      .catch(() => ({ rows: [], total: 0 })),
+  ]);
 
   const totalPages = data.total > 0 ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
