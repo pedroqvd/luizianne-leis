@@ -22,8 +22,11 @@ export function MemberActions({ userId, currentRole, isSelf }: Props) {
     if (!confirm('Remover este membro? Essa ação não pode ser desfeita.')) return;
     setRemoving(true);
     startTransition(async () => {
-      await removeTeamMember(userId);
-      setRemoving(false);
+      try {
+        await removeTeamMember(userId);
+      } finally {
+        setRemoving(false);
+      }
     });
   }
 
