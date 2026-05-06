@@ -89,7 +89,7 @@ export class VoteRepository {
          COUNT(*) FILTER (WHERE vote IN ('Abstenção','Abstencao')) AS abstencao,
          COUNT(*) FILTER (WHERE vote = 'Obstrução')              AS obstrucao,
          COUNT(*) FILTER (WHERE is_absence = true)               AS ausente,
-         COUNT(*) FILTER (WHERE is_absence = false)              AS total_votados
+         COUNT(*) FILTER (WHERE is_absence IS NOT TRUE)           AS total_votados
        FROM votes
        WHERE deputy_id = $1`,
       [deputyId],
