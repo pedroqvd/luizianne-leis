@@ -110,8 +110,12 @@ export class NotificationsListener {
         [areaSlug],
       );
       for (const { email: to } of rows) {
-        const msg = await buildEmail(to);
-        await this.email.send({ to, ...msg });
+        try {
+          const msg = await buildEmail(to);
+          await this.email.send({ to, ...msg });
+        } catch (e: any) {
+          this.logger.warn(`sendEmailsForArea(${areaSlug}) failed for ${to}: ${e.message}`);
+        }
       }
     } catch (e: any) {
       this.logger.warn(`sendEmailsForArea(${areaSlug}) failed: ${e.message}`);
