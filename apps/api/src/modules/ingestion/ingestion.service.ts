@@ -309,15 +309,19 @@ export class IngestionService {
     try {
       const items = await this.api.getPropositionProceedings(externalPropId);
       for (const t of items) {
-        await this.props.insertProceeding({
-          proposition_id: propositionId,
-          sequence: t.sequencia ?? null,
-          description: t.descricaoTramitacao ?? t.despacho ?? null,
-          body: t.despacho ?? null,
-          status_at_time: t.descricaoSituacao ?? null,
-          date: t.dataHora ?? null,
-          payload: t,
-        });
+        try {
+          await this.props.insertProceeding({
+            proposition_id: propositionId,
+            sequence: t.sequencia ?? null,
+            description: t.descricaoTramitacao ?? t.despacho ?? null,
+            body: t.despacho ?? null,
+            status_at_time: t.descricaoSituacao ?? null,
+            date: t.dataHora ?? null,
+            payload: t,
+          });
+        } catch (e: any) {
+          this.logger.debug(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
+        }
       }
     } catch (e: any) {
       this.logger.debug(`proceedings sync failed for ${externalPropId}: ${e.message}`);
