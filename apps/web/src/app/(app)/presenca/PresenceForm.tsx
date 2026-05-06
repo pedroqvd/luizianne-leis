@@ -49,10 +49,12 @@ export function PresenceForm({ onClose }: Props) {
           const { error: uploadError } = await supabase.storage
             .from('presence-photos')
             .upload(path, photoFile, { upsert: true });
-          if (!uploadError) {
-            const { data } = supabase.storage.from('presence-photos').getPublicUrl(path);
-            photo_url = data.publicUrl;
+          if (uploadError) {
+            setError(`Erro ao enviar foto: ${uploadError.message}`);
+            return;
           }
+          const { data } = supabase.storage.from('presence-photos').getPublicUrl(path);
+          photo_url = data.publicUrl;
         }
         await createPresenceRecord({ location, date, type, notes: notes || undefined, photo_url });
         onClose();

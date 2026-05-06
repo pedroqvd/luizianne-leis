@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { deleteDemanda, updateDemandaStatus, type DemandaInput } from '@/app/(app)/actions/demandas';
+import { deleteDemanda, updateDemandaStatus, createDemandaAndReturn, type DemandaInput } from '@/app/(app)/actions/demandas';
 import { DemandaModal, STATUSES, PRIORITIES } from './DemandaModal';
 import { Plus, Pencil, Trash2, Loader2, ClipboardList, AlertCircle, Calendar, User } from 'lucide-react';
 
@@ -208,7 +208,11 @@ export function DemandasClient({ demands: initial, members }: Props) {
 
       {showModal && (
         <DemandaModal
-          onClose={() => { setShowModal(false); setEditing(null); }}
+          onClose={(created) => {
+            if (created && !editing) setDemands(ds => [created, ...ds]);
+            setShowModal(false);
+            setEditing(null);
+          }}
           members={members}
           initial={editing}
         />

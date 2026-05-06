@@ -43,8 +43,22 @@ export async function updateDemanda(id: number, data: Partial<DemandaInput>) {
 export async function deleteDemanda(id: number) {
   await currentUserId();
   const admin = createAdminClient();
-  await admin.from('demands').delete().eq('id', id);
+  const { error } = await admin.from('demands').delete().eq('id', id);
+  if (error) throw new Error(error.message);
   revalidatePath('/demandas');
+}
+
+export async function createDemandaAndReturn(data: DemandaInput) {
+  const userId = await currentUserId();
+  const admin = createAdminClient();
+  const { data: row, error } = await admin
+    .from('demands')
+    .insert({ ...data, created_by: userId })
+    .select('*, assignee:assigned_to(name)')
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath('/demandas');
+  return row;
 }
 
 export async function updateDemandaStatus(id: number, status: string) {

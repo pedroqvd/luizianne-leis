@@ -15,13 +15,13 @@ async function getUserContext(): Promise<{ isAdmin: boolean; allowedTabs: string
     if (!user) return { isAdmin: false, allowedTabs: null };
 
     const admin = createAdminClient();
-    const [{ data: profile }, { data: perms }] = await Promise.all([
-      admin.from('app_users').select('role').eq('id', user.id).single(),
-      admin.from('user_tab_permissions').select('tab_slug, enabled').eq('user_id', user.id),
-    ]);
-
+    const { data: profile } = await admin.from('app_users').select('role').eq('id', user.id).single();
     const isAdmin = profile?.role === 'admin';
-    if (isAdmin || !perms?.length) return { isAdmin, allowedTabs: null };
+    if (isAdmin) return { isAdmin: true, allowedTabs: null };
+
+    const { data: perms } = await admin
+      .from('user_tab_permissions').select('tab_slug, enabled').eq('user_id', user.id);
+    if (!perms?.length) return { isAdmin: false, allowedTabs: null };
 
     const ALL_SLUGS = ['legislativo','emendas','votes','comissoes','editais','analytics','atividade','presenca','demandas'];
     const map = Object.fromEntries(perms.map(p => [p.tab_slug, p.enabled]));
@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
-      <BottomNav />
+      <BottomNav allowedTabs={allowedTabs} />
       <RealtimeBadge />
       <CommandPalette />
     </div>
