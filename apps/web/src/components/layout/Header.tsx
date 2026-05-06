@@ -10,7 +10,9 @@ export function MobileHeader() {
   const supabase = createClient();
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     router.push('/login');
     router.refresh();
   }

@@ -35,7 +35,6 @@ export function RealtimeBadge() {
     };
 
     for (const t of Object.keys(LABELS)) es.addEventListener(t, handler as any);
-    es.onerror = () => es.close();
     return () => es.close();
   }, []);
 

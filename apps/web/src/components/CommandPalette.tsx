@@ -62,7 +62,9 @@ export function CommandPalette() {
     // Fetch search from API
     startTransition(async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/propositions?search=${encodeURIComponent(query)}&limit=5`);
+        const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+        const res = await fetch(`${base}/api/propositions?search=${encodeURIComponent(query)}&limit=5`);
+        if (!res.ok) return;
         const data = await res.json();
         const apiResults: Result[] = (data.rows ?? []).map((p: any) => ({
           id: `prop-${p.id}`,

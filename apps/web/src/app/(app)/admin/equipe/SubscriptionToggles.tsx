@@ -17,7 +17,13 @@ export function SubscriptionToggles({ userId, areaId, enabled: initial, isSelf }
   function handleToggle() {
     const next = !enabled;
     setEnabled(next);
-    startTransition(() => toggleSubscription(userId, areaId, next));
+    startTransition(async () => {
+      try {
+        await toggleSubscription(userId, areaId, next);
+      } catch {
+        setEnabled(!next); // revert optimistic update on failure
+      }
+    });
   }
 
   return (

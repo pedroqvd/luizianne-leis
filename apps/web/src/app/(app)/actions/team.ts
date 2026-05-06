@@ -27,6 +27,7 @@ export async function inviteTeamMember(email: string, name: string) {
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? `https://${process.env.VERCEL_URL}`}/auth/callback`,
   });
   if (error) return { error: error.message };
+  if (!data?.user?.id) return { error: 'Falha ao criar o usuário no sistema' };
 
   await admin.from('app_users').upsert({
     id: data.user.id,
@@ -58,8 +59,8 @@ export async function toggleSubscription(userId: string, areaId: number, enabled
 
 export async function removeTeamMember(userId: string) {
   const admin = await requireAdmin();
-  await admin.from('app_users').delete().eq('id', userId);
   await admin.auth.admin.deleteUser(userId);
+  await admin.from('app_users').delete().eq('id', userId);
   revalidatePath('/admin/equipe');
 }
 
