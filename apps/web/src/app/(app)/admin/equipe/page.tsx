@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import { InviteForm } from './InviteForm';
 import { SubscriptionToggles } from './SubscriptionToggles';
 import { MemberActions } from './MemberActions';
-import { Users, Shield, Mail } from 'lucide-react';
+import { TabPermissions } from './TabPermissions';
+import { Users, Shield, Mail, LayoutGrid } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,12 @@ interface Subscription {
   enabled: boolean;
 }
 
+interface TabPerm {
+  user_id: string;
+  tab_slug: string;
+  enabled: boolean;
+}
+
 export default async function EquipePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -47,18 +54,26 @@ export default async function EquipePage() {
     redirect('/');
   }
 
-  const [{ data: users }, { data: areas }, { data: subscriptions }] = await Promise.all([
+  const [{ data: users }, { data: areas }, { data: subscriptions }, { data: tabPerms }] = await Promise.all([
     admin.from('app_users').select('*').order('created_at'),
     admin.from('notification_areas').select('*').order('id'),
     admin.from('user_subscriptions').select('*'),
+    admin.from('user_tab_permissions').select('*'),
   ]);
 
   const members = (users ?? []) as AppUser[];
   const areasList = (areas ?? []) as Area[];
   const subsList = (subscriptions ?? []) as Subscription[];
+  const tabPermsList = (tabPerms ?? []) as TabPerm[];
 
   function isEnabled(userId: string, areaId: number) {
     return subsList.find((s) => s.user_id === userId && s.area_id === areaId)?.enabled ?? false;
+  }
+
+  function getTabPerms(userId: string): Record<string, boolean> {
+    return Object.fromEntries(
+      tabPermsList.filter(p => p.user_id === userId).map(p => [p.tab_slug, p.enabled])
+    );
   }
 
   return (
@@ -158,6 +173,37 @@ export default async function EquipePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Tab access control */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-50 flex items-center gap-2">
+          <LayoutGrid className="w-4 h-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-900">Controle de Abas</h2>
+          <span className="text-xs text-slate-400 ml-1">— clique para bloquear/liberar abas por membro</span>
+        </div>
+        {members.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-400">Nenhum membro cadastrado.</div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {members.map((m) => (
+              <div key={m.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="w-40 flex-shrink-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{m.name ?? '—'}</p>
+                  <p className="text-xs text-slate-400 truncate">{m.email}</p>
+                  {m.role === 'admin' && (
+                    <span className="text-[10px] text-brand-600 font-medium">acesso total</span>
+                  )}
+                </div>
+                {m.role === 'admin' ? (
+                  <p className="text-xs text-slate-300 italic">Admins têm acesso a todas as abas.</p>
+                ) : (
+                  <TabPermissions userId={m.id} permissions={getTabPerms(m.id)} />
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
