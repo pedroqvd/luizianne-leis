@@ -72,7 +72,8 @@ export class EditaisRepository {
       params.push(`%${filter.search}%`);
     }
     if (filter.encerrandoEm) {
-      conditions.push(`data_proposta_fim BETWEEN NOW() AND NOW() + INTERVAL '${Number(filter.encerrandoEm)} days'`);
+      params.push(Number(filter.encerrandoEm));
+      conditions.push(`data_proposta_fim BETWEEN NOW() AND NOW() + ($${i++} * INTERVAL '1 day')`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';

@@ -166,6 +166,9 @@ export class AbsenceTrackerService {
   ): Promise<boolean> {
     const allVotes = await this.api.getVoteDetails(voting.id);
 
+    // Empty vote list means the API returned no data — skip to avoid false absences
+    if (allVotes.length === 0) return false;
+
     const voted = allVotes.some((v) => v.deputado_?.id === deputyExternalId);
     if (voted) return false;
 
