@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { deleteDemanda, updateDemandaStatus } from '@/app/(app)/actions/demandas';
-import { DemandaModal, STATUSES, PRIORITIES, type DemandaInput } from './DemandaModal';
+import { deleteDemanda, updateDemandaStatus, type DemandaInput } from '@/app/(app)/actions/demandas';
+import { DemandaModal, STATUSES, PRIORITIES } from './DemandaModal';
 import { Plus, Pencil, Trash2, Loader2, ClipboardList, AlertCircle, Calendar, User } from 'lucide-react';
 
 interface Member { id: string; name: string | null; email: string }

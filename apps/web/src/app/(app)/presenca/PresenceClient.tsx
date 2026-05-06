@@ -5,7 +5,7 @@ import { deletePresenceRecord } from '@/app/(app)/actions/presenca';
 import { PresenceForm } from './PresenceForm';
 import { MapPin, Plus, Trash2, Calendar, Loader2 } from 'lucide-react';
 
-interface Record {
+interface PresenceRecord {
   id: number;
   location: 'brasilia' | 'fortaleza';
   date: string;
@@ -31,8 +31,8 @@ function fmt(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', weekday: 'long' });
 }
 
-function groupByMonth(records: Record[]) {
-  const map = new Map<string, Record[]>();
+function groupByMonth(records: PresenceRecord[]) {
+  const map = new Map<string, PresenceRecord[]>();
   for (const r of records) {
     const key = r.date.slice(0, 7);
     if (!map.has(key)) map.set(key, []);
@@ -41,7 +41,7 @@ function groupByMonth(records: Record[]) {
   return map;
 }
 
-interface Props { records: Record[] }
+interface Props { records: PresenceRecord[] }
 
 export function PresenceClient({ records: initial }: Props) {
   const [records, setRecords] = useState(initial);
