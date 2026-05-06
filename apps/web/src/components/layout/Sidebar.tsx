@@ -4,26 +4,28 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
-  Activity, Users, LogOut, ChevronRight, FileText,
-  Vote, Building2, FileSearch, Search,
+  Activity, Users, LogOut, ChevronRight,
+  Vote, Building2, FileSearch, Search, MapPin, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 
 const navItems = [
-  { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/legislativo', label: 'Legislativo',  icon: ScrollText },
-  { href: '/emendas',     label: 'Emendas',      icon: Landmark },
-  { href: '/votes',       label: 'Votações',     icon: Vote },
-  { href: '/comissoes',   label: 'Comissões',    icon: Building2 },
-  { href: '/editais',     label: 'Editais',      icon: FileSearch },
-  { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
-  { href: '/atividade',   label: 'Atividade',    icon: Activity },
+  { href: '/',            label: 'Dashboard',   icon: LayoutDashboard, slug: null },
+  { href: '/legislativo', label: 'Legislativo',  icon: ScrollText,      slug: 'legislativo' },
+  { href: '/emendas',     label: 'Emendas',      icon: Landmark,        slug: 'emendas' },
+  { href: '/votes',       label: 'Votações',     icon: Vote,            slug: 'votes' },
+  { href: '/comissoes',   label: 'Comissões',    icon: Building2,       slug: 'comissoes' },
+  { href: '/editais',     label: 'Editais',      icon: FileSearch,      slug: 'editais' },
+  { href: '/analytics',   label: 'Analytics',    icon: BarChart3,       slug: 'analytics' },
+  { href: '/atividade',   label: 'Atividade',    icon: Activity,        slug: 'atividade' },
+  { href: '/presenca',    label: 'Presença',     icon: MapPin,          slug: 'presenca' },
+  { href: '/demandas',    label: 'Demandas',     icon: ClipboardList,   slug: 'demandas' },
 ];
 
-interface Props { isAdmin?: boolean }
+interface Props { isAdmin?: boolean; allowedTabs?: string[] | null }
 
-export function Sidebar({ isAdmin = false }: Props) {
+export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -72,7 +74,7 @@ export function Sidebar({ isAdmin = false }: Props) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="section-label px-2 mb-2">Navegação</p>
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.filter(({ slug }) => slug === null || allowedTabs === null || allowedTabs.includes(slug)).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
