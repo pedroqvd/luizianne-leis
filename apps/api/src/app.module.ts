@@ -20,6 +20,9 @@ import { EditaisModule } from './modules/editais/editais.module';
 import { EmendasOrcModule } from './modules/emendas-orc/emendas-orc.module';
 import { DemandasModule } from './modules/demandas/demands.module';
 
+// FIX #2: Guard JWT global
+import { JwtAuthGuard } from './infra/auth';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -47,6 +50,11 @@ import { DemandasModule } from './modules/demandas/demands.module';
     AdminModule,
     DemandasModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // FIX #2 (CRÍTICO): JWT auth guard global — todos os endpoints exigem Bearer token
+    // exceto os marcados com @Public()
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}

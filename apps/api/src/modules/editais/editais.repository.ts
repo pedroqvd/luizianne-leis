@@ -49,6 +49,10 @@ export class EditaisRepository {
     );
   }
 
+  /**
+   * FIX B1 (ALTO): limit e offset agora são parametrizados ($N) em vez de interpolados.
+   * Mesma classe de vulnerabilidade do FIX #1 no PropositionRepository.
+   */
   async list(filter: EditalFilter) {
     const conditions: string[] = [];
     const params: any[] = [];
@@ -77,8 +81,14 @@ export class EditaisRepository {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limit = Math.min(filter.limit ?? 50, 200);
-    const offset = filter.offset ?? 0;
+
+    // FIX B1: Parametrizar limit e offset para eliminar SQL injection
+    const limit = Math.min(Math.max(Number(filter.limit) || 50, 1), 200);
+    const offset = Math.max(Number(filter.offset) || 0, 0);
+    params.push(limit);
+    const limitParam = `$${i++}`;
+    params.push(offset);
+    const offsetParam = `$${i++}`;
 
     const [{ rows }, { rows: cnt }] = await Promise.all([
       this.pool.query(
@@ -90,10 +100,13 @@ export class EditaisRepository {
            ORDER BY
              CASE situacao WHEN 'aberto' THEN 0 WHEN 'suspenso' THEN 1 ELSE 2 END,
              data_proposta_fim ASC NULLS LAST, data_publicacao DESC NULLS LAST
-           LIMIT ${limit} OFFSET ${offset}`,
+           LIMIT ${limitParam} OFFSET ${offsetParam}`,
         params,
       ),
-      this.pool.query(`SELECT COUNT(*)::int AS total FROM editais ${where}`, params),
+      this.pool.query(
+        `SELECT COUNT(*)::int AS total FROM editais ${where}`,
+        params.slice(0, params.length - 2), // count query doesn't need limit/offset
+      ),
     ]);
 
     return { rows, total: cnt[0]?.total ?? 0 };

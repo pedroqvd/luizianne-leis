@@ -63,6 +63,7 @@ export class NotificationsListener {
   @OnEvent('DEPUTY_ABSENT')
   async onDeputyAbsent(event: DomainEvent<Record<string, any>>) {
     await this.handle(event);
+    // FIX #24 (BAIXO): Área 'ausencias' agora existe na migração 010
     await this.sendEmailsForArea('ausencias', async () => ({
       subject: `⚠️ Ausência em votação nominal — ${fmtDate(event.payload?.date)}`,
       html: this.email.absenceHtml({

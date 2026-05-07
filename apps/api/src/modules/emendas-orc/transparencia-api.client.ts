@@ -1,19 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 
 export interface TransparenciaEmenda {
   codigoEmenda?: string;
-  localizador?: string;          // número da emenda legível, ex: "13600000014748"
+  localizador?: string;
   ano?: number;
   nomeAutor?: string;
-  tipoEmenda?: string;           // Individual | Bancada | Comissão
+  tipoEmenda?: string;
   codigoFuncao?: string;
   descricaoFuncao?: string;
   codigoSubfuncao?: string;
   descricaoSubfuncao?: string;
-  codigoProgramatica?: string;   // funcional programática completo
+  codigoProgramatica?: string;
   descricaoProgramatica?: string;
-  codigoGND?: string;            // Grupo de Natureza de Despesa
+  codigoGND?: string;
   descricaoGND?: string;
   nomeOrgaoSuperior?: string;
   nomeOrgao?: string;
@@ -27,12 +27,18 @@ export interface TransparenciaEmenda {
   siglaUf?: string;
 }
 
+// FIX B3: Domínios permitidos para APIs de dados governamentais
+const ALLOWED_TRANSPARENCIA_DOMAINS = [
+  'portaldatransparencia.gov.br',
+  'api.portaldatransparencia.gov.br',
+];
+
 /**
  * Cliente para o Portal da Transparência do Governo Federal.
  * Docs: https://api.portaldatransparencia.gov.br/swagger-ui.html
  *
- * Requer TRANSPARENCIA_API_KEY (gratuita em portaldatransparencia.gov.br/api).
- * Sem a chave, o módulo loga um aviso e não inicia a ingestão.
+ * FIX B2 (MÉDIO): Retry com contador e backoff exponencial (até 3 tentativas).
+ * FIX B3 (MÉDIO): Validação de domínio para impedir SSRF.
  */
 @Injectable()
 export class TransparenciaApiClient {
@@ -47,8 +53,14 @@ export class TransparenciaApiClient {
       return;
     }
 
+    const baseURL = process.env.TRANSPARENCIA_API_BASE_URL
+      ?? 'https://api.portaldatransparencia.gov.br/api-de-dados';
+
+    // FIX B3: Validar domínio
+    this.validateBaseUrl(baseURL);
+
     this.http = axios.create({
-      baseURL: 'https://api.portaldatransparencia.gov.br/api-de-dados',
+      baseURL,
       headers: {
         'chave-api-dados': key,
         'Accept': 'application/json',
@@ -57,24 +69,52 @@ export class TransparenciaApiClient {
       timeout: 30_000,
     });
 
-    // Retry em 429/5xx
-    this.http.interceptors.response.use(undefined, async (err) => {
-      const status = err?.response?.status;
-      if ((status === 429 || (status >= 500 && status < 600)) && !err.config._retry) {
-        err.config._retry = true;
-        await delay(3000);
-        return this.http!.request(err.config);
-      }
-      throw err;
+    // FIX B2: Retry com contador e backoff exponencial
+    this.http.interceptors.response.use(undefined, async (err: AxiosError) => {
+      const cfg = err.config as AxiosRequestConfig & { _retryCount?: number };
+      if (!cfg) return Promise.reject(err);
+
+      const status = err?.response?.status ?? 0;
+      const retriable =
+        status === 429 ||
+        (status >= 500 && status < 600) ||
+        err.code === 'ECONNABORTED' ||
+        err.code === 'ETIMEDOUT' ||
+        err.code === 'ECONNRESET';
+
+      cfg._retryCount = cfg._retryCount ?? 0;
+      if (!retriable || cfg._retryCount >= 3) return Promise.reject(err);
+
+      cfg._retryCount += 1;
+      const delay = 1000 * 2 ** cfg._retryCount; // 2s, 4s, 8s
+      this.logger.debug(
+        `retry ${cfg._retryCount}/3 in ${delay}ms — ${cfg.method?.toUpperCase()} ${cfg.url} (status=${status})`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+      return this.http!.request(cfg);
     });
+  }
+
+  /**
+   * FIX B3 (MÉDIO): Validação de domínio para impedir SSRF.
+   */
+  private validateBaseUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      const allowed = ALLOWED_TRANSPARENCIA_DOMAINS.some((d) => parsed.hostname.endsWith(d));
+      if (!allowed) {
+        throw new Error(
+          `TRANSPARENCIA_API_BASE_URL domain "${parsed.hostname}" is not allowed: ${ALLOWED_TRANSPARENCIA_DOMAINS.join(', ')}`,
+        );
+      }
+    } catch (e: any) {
+      if (e.message.includes('not allowed')) throw e;
+      throw new Error(`Invalid TRANSPARENCIA_API_BASE_URL: ${url}`);
+    }
   }
 
   get available() { return this.http !== null; }
 
-  /**
-   * Busca emendas de um determinado ano pela autora.
-   * Usa nomeAutor como filtro primário; pode ser refinado via DEPUTY_TRANSPARENCIA_CODE.
-   */
   async listEmendas(ano: number, page = 1, size = 100): Promise<TransparenciaEmenda[]> {
     if (!this.http) return [];
 
@@ -101,7 +141,6 @@ export class TransparenciaApiClient {
     return [];
   }
 
-  /** Itera todas as páginas de um ano. */
   async *iterEmendasAno(ano: number): AsyncGenerator<TransparenciaEmenda> {
     let page = 1;
     while (true) {
@@ -113,5 +152,3 @@ export class TransparenciaApiClient {
     }
   }
 }
-
-function delay(ms: number) { return new Promise((r) => setTimeout(r, ms)); }

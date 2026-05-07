@@ -5,28 +5,21 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
  * Cliente para a API publica do PNCP (Portal Nacional de Contratacoes Publicas).
  * Docs: https://pncp.gov.br/api/consulta/swagger-ui/index.html
  *
- * Endpoints relevantes:
- *  - GET /v1/contratacoes/proposta   - editais com proposta aberta
- *  - GET /v1/contratacoes/publicacao - editais por data de publicacao
- *
- * Filtros usados:
- *  - dataInicial/dataFinal (YYYYMMDD)
- *  - codigoModalidadeContratacao (1..14)
- *  - pagina, tamanhoPagina (max 50)
+ * FIX B3 (MÉDIO): Validação de domínio para impedir SSRF via env var.
  */
 
 export interface PncpItem {
-  numeroControlePNCP: string;          // ex: "00000000000000-1-000001/2025"
-  numeroCompra: string;                // numero do edital
+  numeroControlePNCP: string;
+  numeroCompra: string;
   anoCompra: number;
   modalidadeId: number;
   modalidadeNome: string;
   situacaoCompraId: number;
-  situacaoCompraNome: string;          // "Divulgada no PNCP", "Anulada", etc.
+  situacaoCompraNome: string;
   objetoCompra: string;
   valorTotalEstimado?: number;
   valorTotalHomologado?: number;
-  dataAberturaProposta?: string;       // ISO datetime
+  dataAberturaProposta?: string;
   dataEncerramentoProposta?: string;
   dataPublicacaoPncp?: string;
   dataInclusao?: string;
@@ -42,8 +35,8 @@ export interface PncpItem {
   orgaoEntidade?: {
     cnpj?: string;
     razaoSocial?: string;
-    poderId?: string;                  // "L" / "E" / "J" / "N"
-    esferaId?: string;                 // "F" / "E" / "M" / "D"
+    poderId?: string;
+    esferaId?: string;
   };
 }
 
@@ -69,10 +62,12 @@ const ESFERA_MAP: Record<string, string> = {
   D: 'Distrital',
 };
 
-/** Modalidades suportadas pelo PNCP. Cobertura ampla = mais editais. */
 export const MODALIDADES = [
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 ];
+
+// FIX B3: Domínios permitidos para o PNCP
+const ALLOWED_PNCP_DOMAINS = ['pncp.gov.br'];
 
 @Injectable()
 export class PncpApiClient {
@@ -80,8 +75,13 @@ export class PncpApiClient {
   private readonly http: AxiosInstance;
 
   constructor() {
+    const baseURL = process.env.PNCP_API_BASE_URL ?? 'https://pncp.gov.br/api/consulta';
+
+    // FIX B3: Validar domínio
+    this.validateBaseUrl(baseURL);
+
     this.http = axios.create({
-      baseURL: process.env.PNCP_API_BASE_URL ?? 'https://pncp.gov.br/api/consulta',
+      baseURL,
       timeout: 30_000,
       headers: {
         Accept: 'application/json',
@@ -89,6 +89,24 @@ export class PncpApiClient {
       },
     });
     this.installRetry();
+  }
+
+  /**
+   * FIX B3 (MÉDIO): Impede SSRF validando que a URL base pertence a domínios confiáveis.
+   */
+  private validateBaseUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      const allowed = ALLOWED_PNCP_DOMAINS.some((d) => parsed.hostname.endsWith(d));
+      if (!allowed) {
+        throw new Error(
+          `PNCP_API_BASE_URL domain "${parsed.hostname}" is not in the allowed list: ${ALLOWED_PNCP_DOMAINS.join(', ')}`,
+        );
+      }
+    } catch (e: any) {
+      if (e.message.includes('not in the allowed list')) throw e;
+      throw new Error(`Invalid PNCP_API_BASE_URL: ${url}`);
+    }
   }
 
   private installRetry() {
@@ -111,10 +129,6 @@ export class PncpApiClient {
     );
   }
 
-  /**
-   * Editais com proposta aberta ate `dataFinal`.
-   * Retorna a pagina solicitada.
-   */
   async listProposalsByModality(
     dataFinal: string,
     modalidade: number,
@@ -132,7 +146,6 @@ export class PncpApiClient {
       });
       return data;
     } catch (e: any) {
-      // 422 = sem resultados para essa combinacao, comum
       if (e.response?.status === 422 || e.response?.status === 204) {
         return { data: [], totalRegistros: 0, totalPaginas: 0, numeroPagina: page, paginasRestantes: 0 };
       }
@@ -140,13 +153,8 @@ export class PncpApiClient {
     }
   }
 
-  /**
-   * Itera por todas as modalidades para obter editais abertos hoje.
-   * Filtra por esfera Federal (`esferaId === 'F'`) e poder Executivo
-   * para focar em ministerios e orgaos do governo federal.
-   */
   async *iterFederalOpen(maxPagesPerModality = 5): AsyncGenerator<PncpItem> {
-    const dataFinal = formatPncpDate(addDays(new Date(), 60)); // proximos 60 dias
+    const dataFinal = formatPncpDate(addDays(new Date(), 60));
     for (const m of MODALIDADES) {
       let page = 1;
       while (page <= maxPagesPerModality) {
@@ -162,9 +170,6 @@ export class PncpApiClient {
   }
 }
 
-/** Builds PNCP website URL from numeroControlePNCP.
- *  Format: "{cnpj14}-{sequencial}-{numero}/{ano}" → https://pncp.gov.br/app/editais/{cnpj14}/{ano}/{sequencial}
- */
 function buildPncpUrl(item: PncpItem): string {
   const id = item.numeroControlePNCP ?? '';
   const cnpjRaw = (item.orgaoEntidade?.cnpj ?? '').replace(/\D/g, '');
@@ -174,7 +179,6 @@ function buildPncpUrl(item: PncpItem): string {
   if (cnpjRaw && sequencial && ano) {
     return `https://pncp.gov.br/app/editais/${cnpjRaw}/${ano}/${sequencial}`;
   }
-  // Fallback: replace "/" with path separator (don't encode it)
   return `https://pncp.gov.br/app/editais/${id.replace(/\//g, '/')}`;
 }
 

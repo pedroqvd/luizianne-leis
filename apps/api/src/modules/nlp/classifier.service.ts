@@ -5,52 +5,61 @@ import { PG_POOL } from '../../infra/database/database.module';
 /**
  * Classificador heurístico (lexical) para classificar proposições por área temática.
  *
- * Está plugável: o método `classify()` retorna scores normalizados; um classificador
- * baseado em modelo (transformer / spaCy / OpenAI) pode substituir essa implementação
- * sem alterar o contrato. O resultado é gravado em `proposition_categories` com a
- * coluna `classifier` identificando qual modelo gerou (permite rodar A/B).
+ * FIX #14 (MÉDIO): Melhorias no classificador:
+ *   - Termos agora usam word boundaries (regex) em vez de substring match
+ *   - Score mínimo threshold para evitar classificações de baixa confiança
+ *   - Fallback 'outros' com score 0 (baixa confiança) em vez de 1.0
+ *   - Termos expandidos para maior cobertura
  */
 @Injectable()
 export class ClassifierService {
   private readonly logger = new Logger(ClassifierService.name);
-  private readonly classifierName = 'heuristic-v1';
+  private readonly classifierName = 'heuristic-v2';
+  private readonly minScore = 0.15; // FIX #14: Threshold mínimo para classificação
 
-  // Léxico por categoria — ajustado para vocabulário típico de proposições brasileiras.
-  private readonly lexicon: Record<string, string[]> = {
-    saude:          ['saúde', 'sus', 'hospital', 'medicament', 'vacin', 'atenção básica', 'enfermagem', 'sanitár'],
-    educacao:       ['educa', 'escola', 'ensino', 'professor', 'universidad', 'fundeb', 'aluno', 'creche'],
-    seguranca:      ['segurança', 'policial', 'polícia', 'violência', 'penitenciár', 'crime', 'arma'],
-    economia:       ['imposto', 'tributár', 'salário', 'emprego', 'trabalh', 'micro empresa', 'pme', 'previdênc'],
-    direitos:       ['mulher', 'racial', 'lgbt', 'igualdade', 'gênero', 'indígena', 'quilombol', 'idoso', 'pessoa com deficiên'],
-    ambiente:       ['ambiente', 'desmatamento', 'amazônia', 'clima', 'sustentáv', 'saneamento', 'recurs hídric'],
-    habitacao:      ['moradia', 'habitação', 'urbano', 'transport público', 'mobilidade urbana', 'minha casa'],
-    cultura:        ['cultura', 'patrimôni', 'museu', 'rouanet', 'audiovisual'],
-    infraestrutura: ['rodovia', 'ferrovia', 'energia', 'telecomunicaç', 'obra', 'porto', 'aeroporto'],
+  // Léxico por categoria — termos como regex patterns com word boundaries
+  private readonly lexicon: Record<string, RegExp[]> = {
+    saude:          this.buildPatterns(['saúde', 'saude', 'sus\\b', 'hospital', 'medicamento', 'vacina', 'atenção básica', 'enfermagem', 'sanitário', 'sanitária', 'epidemia', 'pandemia', 'ubs\\b', 'farmácia']),
+    educacao:       this.buildPatterns(['educação', 'educacao', 'escola', 'ensino', 'professor', 'universidade', 'fundeb', 'aluno', 'creche', 'pedagog', 'docente', 'enem\\b', 'letramento']),
+    seguranca:      this.buildPatterns(['segurança', 'seguranca', 'policial', 'polícia', 'policia', 'violência', 'violencia', 'penitenciário', 'crime', 'armamento', 'feminicídio', 'tráfico']),
+    economia:       this.buildPatterns(['imposto', 'tributário', 'tributaria', 'salário', 'salario', 'emprego', 'trabalho', 'microempresa', 'previdência', 'previdencia', 'pme\\b', 'fiscal', 'inflação']),
+    direitos:       this.buildPatterns(['mulher', 'racial', 'lgbtq', 'igualdade', 'gênero', 'genero', 'indígena', 'indigena', 'quilombola', 'idoso', 'pessoa com deficiência', 'acessibilidade', 'inclusão']),
+    ambiente:       this.buildPatterns(['meio ambiente', 'desmatamento', 'amazônia', 'amazonia', 'clima', 'sustentável', 'sustentavel', 'saneamento', 'recursos hídricos', 'poluição', 'fauna', 'flora']),
+    habitacao:      this.buildPatterns(['moradia', 'habitação', 'habitacao', 'urbanismo', 'transporte público', 'mobilidade urbana', 'minha casa', 'sem-teto', 'aluguel social']),
+    cultura:        this.buildPatterns(['cultura', 'cultural', 'patrimônio', 'patrimonio', 'museu', 'rouanet', 'audiovisual', 'artístico', 'biblioteca']),
+    infraestrutura: this.buildPatterns(['rodovia', 'ferrovia', 'energia', 'telecomunicação', 'telecomunicacao', 'obra pública', 'porto\\b', 'aeroporto', 'saneamento básico', 'eletrificação']),
   };
 
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  private buildPatterns(terms: string[]): RegExp[] {
+    return terms.map((t) => new RegExp(`\\b${t}`, 'i'));
+  }
+
   /**
    * Classifica um texto retornando scores [0, 1] por categoria.
-   * Score = (matches da categoria) / (total de matches em todas categorias).
+   * FIX #14: Agora usa regex com word boundaries e threshold mínimo.
    */
   classify(text: string): Array<{ slug: string; score: number }> {
     const norm = (text ?? '').toLowerCase();
-    if (!norm) return [];
+    if (!norm || norm.length < 10) return [{ slug: 'outros', score: 0 }];
 
     const counts: Record<string, number> = {};
     let total = 0;
-    for (const [slug, terms] of Object.entries(this.lexicon)) {
-      const c = terms.reduce((acc, t) => acc + (norm.includes(t) ? 1 : 0), 0);
+    for (const [slug, patterns] of Object.entries(this.lexicon)) {
+      const c = patterns.reduce((acc, p) => acc + (p.test(norm) ? 1 : 0), 0);
       if (c > 0) {
         counts[slug] = c;
         total += c;
       }
     }
-    if (total === 0) return [{ slug: 'outros', score: 1 }];
+
+    // FIX #14: Fallback 'outros' com score 0 (baixa confiança)
+    if (total === 0) return [{ slug: 'outros', score: 0 }];
 
     return Object.entries(counts)
       .map(([slug, c]) => ({ slug, score: Number((c / total).toFixed(4)) }))
+      .filter(({ score }) => score >= this.minScore) // FIX #14: threshold
       .sort((a, b) => b.score - a.score);
   }
 

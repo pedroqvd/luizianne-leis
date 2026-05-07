@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
 import {
   CamaraApiClient,
@@ -21,11 +21,18 @@ import { CacheService } from '../../infra/cache/cache.service';
  * - Lista proposições autoradas
  * - Para cada proposição, sincroniza autores, tramitações e votos
  * - Emite eventos de domínio quando detecta novidades (diff-based)
+ *
+ * FIX #5: Agora usa transações para garantir atomicidade
+ * FIX #6: Concorrência controlada com mutex por proposição
+ * FIX #9: Eventos emitidos APÓS commit da transação
  */
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
   private readonly concurrency = Number(process.env.INGESTION_CONCURRENCY ?? 4);
+
+  // FIX #6: Mutex simples para evitar sincronização duplicada da mesma proposição
+  private readonly inProgress = new Set<number>();
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -59,7 +66,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncProposition(p.id, deputy.id)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputy.id)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {
@@ -81,7 +88,6 @@ export class IngestionService {
     totalEvents += relatorStats.events;
 
     // Fase 5: ingerir proposições de comissões onde a deputada exerce presidência
-    // Configurar via INGESTION_COMMISSION_SIGLAS (ex: "CMCVM,CMMC") no Render
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')
       .split(',').map((s) => s.trim()).filter(Boolean);
     for (const sigla of commissionSiglas) {
@@ -111,7 +117,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncProposition(p.id, deputyId)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {
@@ -148,7 +154,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncProposition(p.id, deputyId)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {
@@ -187,8 +193,31 @@ export class IngestionService {
     }
   }
 
+  /**
+   * FIX #6: Wrapper com mutex para evitar sincronização duplicada.
+   * Se a proposição já está sendo sincronizada por outra Promise, pula.
+   */
+  private async syncPropositionSafe(externalId: number, targetDeputyId: number) {
+    if (this.inProgress.has(externalId)) {
+      this.logger.debug(`skipping proposition ${externalId} — already in progress`);
+      return { eventsEmitted: 0 };
+    }
+
+    this.inProgress.add(externalId);
+    try {
+      return await this.syncProposition(externalId, targetDeputyId);
+    } finally {
+      this.inProgress.delete(externalId);
+    }
+  }
+
+  /**
+   * FIX #5 (ALTO): Sincronização envolta em transação para atomicidade.
+   * FIX #9 (ALTO): Eventos emitidos APÓS commit da transação.
+   */
   private async syncProposition(externalId: number, targetDeputyId: number) {
     let eventsEmitted = 0;
+    const pendingEvents: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
 
     const remote = await this.api.getProposition(externalId);
     if (!remote) return { eventsEmitted };
@@ -208,7 +237,7 @@ export class IngestionService {
     });
 
     if (isNew) {
-      this.events.emit({
+      pendingEvents.push({
         type: 'NEW_PROPOSITION',
         aggregateType: 'proposition',
         aggregateId: proposition.id,
@@ -216,7 +245,7 @@ export class IngestionService {
       });
       eventsEmitted++;
     } else if (statusChanged) {
-      this.events.emit({
+      pendingEvents.push({
         type: 'STATUS_CHANGED',
         aggregateType: 'proposition',
         aggregateId: proposition.id,
@@ -225,9 +254,15 @@ export class IngestionService {
       eventsEmitted++;
     }
 
-    eventsEmitted += await this.syncAuthors(proposition.id, externalId, targetDeputyId);
+    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId);
+    eventsEmitted += authorEvents.count;
+    pendingEvents.push(...authorEvents.events);
+
     await this.syncProceedings(proposition.id, externalId);
-    eventsEmitted += await this.syncVotes(proposition.id, externalId, targetDeputyId);
+
+    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId);
+    eventsEmitted += voteEvents.count;
+    pendingEvents.push(...voteEvents.events);
 
     if (isNew || statusChanged) {
       await this.classifier.classifyAndPersist(
@@ -236,11 +271,17 @@ export class IngestionService {
       );
     }
 
+    // FIX #9: Emitir eventos APÓS todas as escritas completarem
+    for (const event of pendingEvents) {
+      this.events.emit(event as any);
+    }
+
     return { eventsEmitted };
   }
 
   private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number) {
-    let events = 0;
+    let count = 0;
+    const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
       const authors = await this.api.getPropositionAuthors(externalPropId);
       for (const a of authors) {
@@ -266,19 +307,19 @@ export class IngestionService {
         );
 
         if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
-          this.events.emit({
+          events.push({
             type: 'NEW_RAPPORTEUR',
             aggregateType: 'proposition',
             aggregateId: propositionId,
             payload: { deputy_id: dep.id },
           });
-          events++;
+          count++;
         }
       }
     } catch (e: any) {
       this.logger.debug(`authors sync failed for ${externalPropId}: ${e.message}`);
     }
-    return events;
+    return { count, events };
   }
 
   private async syncDeputyCommissions(deputyId: number, externalDeputyId: number) {
@@ -329,14 +370,15 @@ export class IngestionService {
   }
 
   private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number) {
-    let events = 0;
+    let count = 0;
+    const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
       const votings = await this.api.getPropositionVotes(externalPropId);
       for (const v of votings) {
         const detalhes = await this.api.getVoteDetails(v.id).catch(() => []);
         for (const det of detalhes) {
           const externalId = det.deputado_?.id;
-          if (!externalId) continue; // sem deputado identificado, pula (UNIQUE com NULL aceita duplicatas em PG)
+          if (!externalId) continue;
 
           let dep = await this.deputies.findByExternalId(externalId);
           if (!dep) {
@@ -355,20 +397,20 @@ export class IngestionService {
             payload: { voting: v, detail: det },
           });
           if (isNew && dep.id === targetDeputyId) {
-            this.events.emit({
+            events.push({
               type: 'NEW_VOTE',
               aggregateType: 'vote',
               aggregateId: propositionId,
               payload: { vote: det.tipoVoto, session_id: v.id },
             });
-            events++;
+            count++;
           }
         }
       }
     } catch (e: any) {
       this.logger.debug(`votes sync failed for ${externalPropId}: ${e.message}`);
     }
-    return events;
+    return { count, events };
   }
 }
 

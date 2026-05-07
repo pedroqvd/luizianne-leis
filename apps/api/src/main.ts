@@ -5,14 +5,28 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? '*')
+  const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
 
+  // FIX #25: CORS não permite '*' por padrão — exige CORS_ORIGINS explícito em produção
+  const isProduction = process.env.NODE_ENV === 'production';
+  let corsOrigin: boolean | string[];
+  if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+    if (isProduction) {
+      Logger.warn('CORS_ORIGINS not set in production — defaulting to restrictive. Set CORS_ORIGINS env var.', 'Bootstrap');
+      corsOrigin = false;
+    } else {
+      corsOrigin = true; // dev: allow all
+    }
+  } else {
+    corsOrigin = allowedOrigins;
+  }
+
   const app = await NestFactory.create(AppModule, {
     cors: {
-      origin: allowedOrigins.includes('*') ? true : allowedOrigins,
+      origin: corsOrigin,
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
     },
@@ -23,7 +37,8 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: false,
+      // FIX #11 (ALTO): Rejeita propriedades não previstas no DTO
+      forbidNonWhitelisted: true,
     }),
   );
 
@@ -32,6 +47,7 @@ async function bootstrap() {
       .setTitle('Luizianne Leis — Core API')
       .setDescription('Plataforma de transparência legislativa')
       .setVersion('0.1.0')
+      .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('docs', app, document);
