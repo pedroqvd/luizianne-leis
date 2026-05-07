@@ -3,7 +3,10 @@ import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { PG_POOL } from '../../infra/database/database.module';
 import { REDIS_CLIENT } from '../../infra/redis/redis.module';
+import { Public } from '../../infra/auth';
 
+// FIX #2: Health endpoint marcado como @Public() — deve ser acessível sem JWT
+@Public()
 @Controller('health')
 class HealthController {
   constructor(

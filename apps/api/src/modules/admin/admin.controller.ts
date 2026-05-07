@@ -1,5 +1,6 @@
 import { Controller, ForbiddenException, Headers, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { timingSafeEqual } from 'node:crypto';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
 import { LawsAlertService } from '../ingestion/laws-alert.service';
@@ -78,8 +79,11 @@ export class AdminController {
     @Query('to') to?: string,
   ) {
     this.assertAuth(token);
-    // Run in background — return immediately with 202 Accepted
-    this.absence.checkAllHistoricalAbsences(from, to).catch(() => undefined);
+    // FIX #19: Log errors instead of silently swallowing them
+    this.absence.checkAllHistoricalAbsences(from, to).catch((err) => {
+      const logger = new (require('@nestjs/common').Logger)('AdminController');
+      logger.error(`Historical absence backfill failed: ${err.message}`, err.stack);
+    });
     return {
       ok: true,
       message: 'Historical absence backfill started in background. Check server logs for progress.',
@@ -95,9 +99,18 @@ export class AdminController {
     return { ok: true, ...result };
   }
 
+  // FIX #3 (CRÍTICO): Usa timingSafeEqual para impedir timing attack na comparação do token
   private assertAuth(token?: string) {
     const expected = process.env.ADMIN_TOKEN;
     if (!expected) throw new ForbiddenException('ADMIN_TOKEN não configurado no servidor');
-    if (token !== expected) throw new ForbiddenException('token inválido');
+    if (!token) throw new ForbiddenException('token ausente');
+
+    const tokenBuf = Buffer.from(token);
+    const expectedBuf = Buffer.from(expected);
+
+    // timingSafeEqual exige buffers de mesmo tamanho — se tamanhos diferem, rejeitar
+    if (tokenBuf.length !== expectedBuf.length || !timingSafeEqual(tokenBuf, expectedBuf)) {
+      throw new ForbiddenException('token inválido');
+    }
   }
 }

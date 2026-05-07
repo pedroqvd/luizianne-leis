@@ -55,19 +55,28 @@ export class PropositionRepository {
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const limit = Math.min(filter.limit ?? 50, 200);
-    const offset = filter.offset ?? 0;
+
+    // FIX #1: limit e offset agora são parametrizados ($N) — elimina SQL injection
+    const limit = Math.min(Math.max(Number(filter.limit) || 50, 1), 200);
+    const offset = Math.max(Number(filter.offset) || 0, 0);
+
+    const limitIdx = i++;
+    const offsetIdx = i++;
+    params.push(limit, offset);
 
     const dataSql = `
       SELECT DISTINCT p.* FROM ${from}
       ${whereSql}
       ORDER BY p.presented_at DESC NULLS LAST, p.id DESC
-      LIMIT ${limit} OFFSET ${offset}`;
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const countSql = `SELECT COUNT(DISTINCT p.id)::int AS c FROM ${from} ${whereSql}`;
+
+    // countSql usa apenas os params de filtro (sem limit/offset)
+    const filterParams = params.slice(0, params.length - 2);
 
     const [data, count] = await Promise.all([
       this.pool.query(dataSql, params),
-      this.pool.query(countSql, params),
+      this.pool.query(countSql, filterParams),
     ]);
 
     return { rows: data.rows, total: count.rows[0].c };

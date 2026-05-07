@@ -28,7 +28,8 @@ export class AnalyticsService {
              JOIN proposition_authors pa ON pa.proposition_id = p.id
              WHERE pa.deputy_id = $1
              GROUP BY p.type
-             ORDER BY total DESC`,
+             ORDER BY total DESC
+             LIMIT 50`,
           [d.id],
         ),
         this.pool.query(
@@ -37,7 +38,8 @@ export class AnalyticsService {
              JOIN proposition_authors pa ON pa.proposition_id = p.id
              WHERE pa.deputy_id = $1 AND p.year IS NOT NULL
              GROUP BY p.year
-             ORDER BY p.year ASC`,
+             ORDER BY p.year ASC
+             LIMIT 50`,
           [d.id],
         ),
       ]);
@@ -53,6 +55,7 @@ export class AnalyticsService {
 
   async productivity() {
     return this.cache.wrap('analytics:productivity', 300, async () => {
+      // FIX #15: LIMIT já existia (50), mantido
       const { rows } = await this.pool.query(
         `SELECT * FROM v_deputy_productivity ORDER BY total_propositions DESC LIMIT 50`,
       );
@@ -64,11 +67,13 @@ export class AnalyticsService {
     return this.cache.wrap('analytics:approval', 300, async () => {
       const [byStatus, rates] = await Promise.all([
         this.pool.query(
+          // FIX #15 (MÉDIO): Adicionado LIMIT para evitar respostas gigantes
           `SELECT status, COUNT(*)::int AS total
              FROM propositions
              WHERE status IS NOT NULL
              GROUP BY status
-             ORDER BY total DESC`,
+             ORDER BY total DESC
+             LIMIT 100`,
         ),
         this.pool.query(
           `SELECT AVG(approval_rate)::numeric(5,2) AS avg_approval,
@@ -92,6 +97,7 @@ export class AnalyticsService {
     return this.cache.wrap('analytics:heatmap', 300, async () => {
       const d = await this.deputy.getTarget();
       const { rows } = await this.pool.query(
+        // FIX #15: LIMIT 731 (2 years max) para segurança
         `SELECT DATE_TRUNC('day', p.presented_at)::date AS day,
                 COUNT(DISTINCT p.id)::int AS total
            FROM propositions p
@@ -100,7 +106,8 @@ export class AnalyticsService {
              AND p.presented_at IS NOT NULL
              AND p.presented_at >= NOW() - INTERVAL '2 years'
            GROUP BY day
-           ORDER BY day ASC`,
+           ORDER BY day ASC
+           LIMIT 731`,
         [d.id],
       );
       return rows as { day: string; total: number }[];

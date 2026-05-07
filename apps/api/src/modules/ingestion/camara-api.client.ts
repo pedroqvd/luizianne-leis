@@ -97,23 +97,37 @@ export interface CamaraDeputyOrgao {
   dataFim?: string;
 }
 
+// FIX #7 (ALTO): Lista de domínios permitidos para baseURL — impede SSRF
+const ALLOWED_BASE_DOMAINS = [
+  'dadosabertos.camara.leg.br',
+];
+
 /**
  * Cliente HTTP tipado para a API oficial da Câmara dos Deputados.
  * Docs: https://dadosabertos.camara.leg.br/swagger/api.html
  *
  * - Retries com backoff exponencial em 429/5xx (até 3 tentativas).
  * - User-Agent identificável (boa cidadania para APIs públicas).
- * - Iteração paginada via async generator (`iterAuthoredPropositions`).
+ * - FIX #7: Validação de domínio para impedir SSRF via env var.
+ * - FIX #20: Rate limiting proativo via delay entre requests.
  */
 @Injectable()
 export class CamaraApiClient {
   private readonly logger = new Logger(CamaraApiClient.name);
   private readonly http: AxiosInstance;
 
+  // FIX #20: Rate limiting — delay mínimo entre requests (ms)
+  private readonly minDelay = Number(process.env.CAMARA_API_MIN_DELAY_MS ?? 200);
+  private lastRequestAt = 0;
+
   constructor() {
+    const baseURL = process.env.CAMARA_API_BASE_URL ?? 'https://dadosabertos.camara.leg.br/api/v2';
+
+    // FIX #7: Validar que a URL base pertence a um domínio confiável
+    this.validateBaseUrl(baseURL);
+
     this.http = axios.create({
-      baseURL:
-        process.env.CAMARA_API_BASE_URL ?? 'https://dadosabertos.camara.leg.br/api/v2',
+      baseURL,
       timeout: 30_000,
       headers: {
         Accept: 'application/json',
@@ -121,6 +135,25 @@ export class CamaraApiClient {
       },
     });
     this.installRetryInterceptor();
+    this.installRateLimitInterceptor();
+  }
+
+  /**
+   * FIX #7 (ALTO): Impede SSRF validando que o baseURL aponta para domínios confiáveis.
+   */
+  private validateBaseUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      const allowed = ALLOWED_BASE_DOMAINS.some((d) => parsed.hostname.endsWith(d));
+      if (!allowed) {
+        throw new Error(
+          `CAMARA_API_BASE_URL domain "${parsed.hostname}" is not in the allowed list: ${ALLOWED_BASE_DOMAINS.join(', ')}`,
+        );
+      }
+    } catch (e: any) {
+      if (e.message.includes('not in the allowed list')) throw e;
+      throw new Error(`Invalid CAMARA_API_BASE_URL: ${url}`);
+    }
   }
 
   private installRetryInterceptor() {
@@ -150,6 +183,21 @@ export class CamaraApiClient {
         return this.http.request(cfg);
       },
     );
+  }
+
+  /**
+   * FIX #20 (MÉDIO): Rate limiting proativo — garante delay mínimo entre requests.
+   */
+  private installRateLimitInterceptor() {
+    this.http.interceptors.request.use(async (config) => {
+      const now = Date.now();
+      const elapsed = now - this.lastRequestAt;
+      if (elapsed < this.minDelay) {
+        await new Promise((r) => setTimeout(r, this.minDelay - elapsed));
+      }
+      this.lastRequestAt = Date.now();
+      return config;
+    });
   }
 
   // ── Endpoints ──────────────────────────────────────────────────────────────
@@ -256,11 +304,6 @@ export class CamaraApiClient {
     return { items, hasNext };
   }
 
-  /**
-   * Proposições apresentadas por um órgão (comissão) específico.
-   * Usado para ingerir propostas da Comissão Mista e outras comissões
-   * onde a deputada exerce presidência.
-   */
   async listCommissionPropositions(
     siglaOrgao: string,
     page = 1,
@@ -284,11 +327,6 @@ export class CamaraApiClient {
     return { items, hasNext };
   }
 
-  /**
-   * Lista TODAS as votações realizadas em um intervalo de datas.
-   * Usado pelo rastreador de ausências para detectar nominais em que
-   * a deputada não registrou voto.
-   */
   async listNominalVotings(
     dataInicio: string,
     dataFim: string,
@@ -328,28 +366,16 @@ export class CamaraApiClient {
   }
 }
 
-/**
- * Extrai o id do deputado a partir do uri retornado pela API.
- * Necessário porque `/proposicoes/{id}/autores` não traz `id` direto;
- * traz `uri = ".../deputados/<id>"`. Para autores que são comissões
- * (`uri = ".../orgaos/<id>"`), retorna null.
- */
 export function extractDeputyIdFromUri(uri?: string): number | null {
   if (!uri) return null;
   const m = uri.match(/\/deputados\/(\d+)/);
   return m ? Number(m[1]) : null;
 }
 
-/**
- * Retorna a URL pública da proposição no site da Câmara dos Deputados.
- * O campo `uri` da API retorna um endpoint JSON (dadosabertos.camara.leg.br)
- * que não é acessível por usuários. A URL correta é a ficha de tramitação.
- */
 export function camaraPropositionWebUrl(id: number): string {
   return `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${id}`;
 }
 
-/** Mapeia o `tipo`/`proponente`/`ordem` do autor para nosso enum interno. */
 export function mapAuthorRole(
   tipo?: string,
   proponente?: number,

@@ -1,4 +1,9 @@
-export const dynamic = 'force-dynamic';
+/**
+ * FIX F5 (MÉDIO): Removido `export const dynamic = 'force-dynamic'`.
+ * A função getUserContext() usa cookies() que já marca a rota como dinâmica.
+ * Não é necessário forçar explicitamente, e remover permite que sub-rotas
+ * usem ISR/revalidate se quiserem.
+ */
 
 import { Sidebar } from '@/components/layout/Sidebar';
 import { BottomNav } from '@/components/layout/BottomNav';
