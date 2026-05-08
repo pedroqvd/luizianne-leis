@@ -11,6 +11,7 @@ export class PropositionsController {
   @ApiQuery({ name: 'type',   required: false })
   @ApiQuery({ name: 'year',   required: false, type: Number })
   @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'role',   required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'limit',  required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
@@ -18,6 +19,7 @@ export class PropositionsController {
     @Query('type') type?: string,
     @Query('year') year?: string,
     @Query('status') status?: string,
+    @Query('role') role?: string,
     @Query('search') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
@@ -26,6 +28,7 @@ export class PropositionsController {
       type,
       year: year ? Number(year) : undefined,
       status,
+      role,
       search,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,

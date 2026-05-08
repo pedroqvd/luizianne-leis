@@ -43,7 +43,7 @@ function fmtBRL(v?: string | number | null, compact = false) {
 
 function execPct(pago?: string | null, dotacao?: string | null) {
   const p = Number(pago ?? 0), d = Number(dotacao ?? 0);
-  if (!d) return 0;
+  if (!d) return p > 0 ? 100 : 0;
   return Math.min(100, Math.round((p / d) * 100));
 }
 

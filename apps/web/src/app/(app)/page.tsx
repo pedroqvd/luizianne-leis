@@ -23,12 +23,12 @@ interface Summary {
 
 export default async function DashboardPage() {
   let data: Summary | null = null;
-  let heatmap: { day: string; total: number }[] = [];
+  let heatmap: { day: string; total: number }[] | null = null;
 
   try {
     [data, heatmap] = await Promise.all([
       api<Summary>('/analytics/summary'),
-      api<{ day: string; total: number }[]>('/analytics/heatmap').catch(() => []),
+      api<{ day: string; total: number }[]>('/analytics/heatmap').catch(() => null),
     ]);
   } catch {}
 
@@ -81,7 +81,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         </Link>
-        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
+        <Link href="/legislativo?role=autor" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Autorias</p>
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         </Link>
-        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
+        <Link href="/legislativo?role=coautor" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Coautorias</p>
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
             </div>
           </div>
         </Link>
-        <Link href="/legislativo" className="stat-card hover:shadow-md transition-shadow">
+        <Link href="/legislativo?role=relator" className="stat-card hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
               <p className="section-label">Relatorias</p>
@@ -126,7 +126,14 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold text-slate-700">Heatmap de produtividade</h2>
           <span className="text-xs text-slate-400 ml-1">últimos 12 meses</span>
         </div>
-        <ProductivityHeatmap data={heatmap} />
+        {heatmap === null ? (
+          <div className="py-12 text-center text-sm text-slate-400 flex flex-col items-center gap-2">
+            <AlertCircle className="w-6 h-6 text-slate-300" />
+            Não foi possível carregar o histórico de atividades.
+          </div>
+        ) : (
+          <ProductivityHeatmap data={heatmap} />
+        )}
       </div>
 
       {/* Charts */}

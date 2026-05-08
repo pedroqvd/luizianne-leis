@@ -117,49 +117,51 @@ export function PresenceClient({ records: initial }: Props) {
           Nenhum registro encontrado.
         </div>
       ) : (
-        Array.from(grouped.entries()).map(([month, items]) => (
-          <div key={month}>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
-              {new Date(month + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-            </h3>
-            <div className="space-y-3">
-              {items.map((r) => (
-                <div key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
-                  <div className="flex gap-4 p-4">
-                    {r.photo_url && (
-                      <Image src={r.photo_url} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`badge border text-[11px] ${LOCATION_COLORS[r.location]}`}>
-                            <MapPin className="w-3 h-3" />
-                            {r.location === 'brasilia' ? 'Brasília' : 'Fortaleza'}
-                          </span>
-                          <span className="badge border border-slate-100 bg-slate-50 text-slate-600 text-[11px]">
-                            {TYPE_LABELS[r.type] ?? r.type}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          disabled={deleting}
-                          className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
-                        >
-                          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                      <p className="text-sm font-medium text-slate-800 mt-1">{fmt(r.date)}</p>
-                      {r.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{r.notes}</p>}
-                      {r.creator?.name && (
-                        <p className="text-[10px] text-slate-300 mt-1">Registrado por {r.creator.name}</p>
+        <div className="space-y-8">
+          {Array.from(grouped.entries()).map(([month, items]) => (
+            <div key={month}>
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
+                {new Date(month + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </h3>
+              <div className="space-y-3">
+                {items.map((r) => (
+                  <div key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+                    <div className="flex gap-4 p-4">
+                      {r.photo_url && (
+                        <Image src={r.photo_url} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
                       )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`badge border text-[11px] ${LOCATION_COLORS[r.location]}`}>
+                              <MapPin className="w-3 h-3" />
+                              {r.location === 'brasilia' ? 'Brasília' : 'Fortaleza'}
+                            </span>
+                            <span className="badge border border-slate-100 bg-slate-50 text-slate-600 text-[11px]">
+                              {TYPE_LABELS[r.type] ?? r.type}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            disabled={deleting}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                          >
+                            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                        <p className="text-sm font-medium text-slate-800 mt-1">{fmt(r.date)}</p>
+                        {r.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{r.notes}</p>}
+                        {r.creator?.name && (
+                          <p className="text-[10px] text-slate-300 mt-1">Registrado por {r.creator.name}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
 
       {showForm && <PresenceForm onClose={() => setShowForm(false)} />}

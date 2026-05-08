@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {
   FileText, ExternalLink, Calendar, Building2,
   AlertCircle, CheckCircle, PauseCircle, Clock,
-  DollarSign, TrendingUp, Filter,
+  DollarSign, TrendingUp, Filter, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -87,12 +87,18 @@ export default async function EditaisPage({
 }: {
   searchParams: {
     situacao?: string; ministerio?: string; modalidade?: string;
-    uf?: string; search?: string; encerrandoEm?: string;
+    uf?: string; search?: string; encerrandoEm?: string; page?: string;
   };
 }) {
+  const PAGE_SIZE = 60;
+  const parsedPage = Number(searchParams.page ?? 1);
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
+  const offset = (page - 1) * PAGE_SIZE;
+
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(searchParams)) if (v) qs.set(k, v);
-  qs.set('limit', '60');
+  for (const [k, v] of Object.entries(searchParams)) if (v && k !== 'page') qs.set(k, v);
+  qs.set('limit', String(PAGE_SIZE));
+  qs.set('offset', String(offset));
 
   const [listData, stats, ministries] = await Promise.all([
     api<ListResponse>(`/editais?${qs}`).catch(() => ({ rows: [], total: 0 })),
@@ -100,7 +106,14 @@ export default async function EditaisPage({
     api<string[]>('/editais/ministries').catch(() => [] as string[]),
   ]);
 
-  const hasFilter = Object.values(searchParams).some(Boolean);
+  const hasFilter = Object.keys(searchParams).filter(k => k !== 'page').length > 0;
+  const totalPages = listData.total > 0 ? Math.ceil(listData.total / PAGE_SIZE) : 0;
+
+  function pageUrl(p: number) {
+    const q = new URLSearchParams({ ...Object.fromEntries(qs), page: String(p) });
+    q.delete('limit'); q.delete('offset');
+    return `/editais?${q}`;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -223,8 +236,15 @@ export default async function EditaisPage({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs text-slate-400">
-            {hasFilter ? `${listData.total} resultado(s)` : `${listData.total} editais`}
+            {listData.total > 0
+              ? `${offset + 1}–${Math.min(offset + PAGE_SIZE, listData.total)} de ${listData.total} editais`
+              : 'Nenhum edital encontrado'}
           </span>
+          {hasFilter && (
+            <span className="text-[11px] text-brand-700 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-full font-medium">
+              filtro ativo
+            </span>
+          )}
         </div>
 
         {listData.rows.length === 0 ? (
@@ -346,6 +366,44 @@ export default async function EditaisPage({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Paginação */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-6">
+            <p className="text-xs text-slate-400">
+              Página {page} de {totalPages}
+            </p>
+            <div className="flex items-center gap-1">
+              {page > 1 && (
+                <Link href={pageUrl(page - 1)}
+                  className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+                  <ChevronLeft className="w-4 h-4" />
+                </Link>
+              )}
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                let p: number;
+                if (totalPages <= 7) p = i + 1;
+                else if (page <= 4) p = i + 1;
+                else if (page >= totalPages - 3) p = totalPages - 6 + i;
+                else p = page - 3 + i;
+                return (
+                  <Link key={p} href={pageUrl(p)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-colors ${
+                      p === page ? 'bg-brand-700 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    {p}
+                  </Link>
+                );
+              })}
+              {page < totalPages && (
+                <Link href={pageUrl(page + 1)}
+                  className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>

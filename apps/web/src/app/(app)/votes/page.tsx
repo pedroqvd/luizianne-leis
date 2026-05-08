@@ -57,14 +57,17 @@ export default async function VotesPage({
 }) {
   const absencesOnly = searchParams.filter === 'ausencias';
 
-  const votes = await api<VoteRow[]>(`/votes?limit=300${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]);
+  const [votes, stats] = await Promise.all([
+    api<VoteRow[]>(`/votes?limit=300${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]),
+    api<VoteStats>('/votes/stats/target').catch(() => null),
+  ]);
 
-  const sim     = votes.filter((v) => v.vote === 'Sim').length;
-  const nao     = votes.filter((v) => ['Não', 'Nao'].includes(v.vote)).length;
-  const abst    = votes.filter((v) => ['Abstenção', 'Abstencao'].includes(v.vote)).length;
-  const obst    = votes.filter((v) => v.vote === 'Obstrução').length;
-  const ausente = votes.filter((v) => v.is_absence).length;
-  const totalVotados = sim + nao + abst + obst;
+  const sim     = Number(stats?.sim ?? 0);
+  const nao     = Number(stats?.nao ?? 0);
+  const abst    = Number(stats?.abstencao ?? 0);
+  const obst    = Number(stats?.obstrucao ?? 0);
+  const ausente = Number(stats?.ausente ?? 0);
+  const totalVotados = Number(stats?.total_votados ?? 0);
   const totalRegistros = totalVotados + ausente;
 
   return (

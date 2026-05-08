@@ -9,6 +9,7 @@ export interface PropositionFilter {
   year?: number;
   status?: string;
   authorDeputyId?: number;
+  role?: string;
   search?: string;
   limit?: number;
   offset?: number;
@@ -49,9 +50,16 @@ export class PropositionRepository {
     }
 
     let from = `propositions p`;
-    if (filter.authorDeputyId) {
-      from += ` JOIN proposition_authors pa ON pa.proposition_id = p.id AND pa.deputy_id = $${i++}`;
-      params.push(filter.authorDeputyId);
+    if (filter.authorDeputyId || filter.role) {
+      from += ` JOIN proposition_authors pa ON pa.proposition_id = p.id`;
+      if (filter.authorDeputyId) {
+        from += ` AND pa.deputy_id = $${i++}`;
+        params.push(filter.authorDeputyId);
+      }
+      if (filter.role) {
+        from += ` AND pa.role = $${i++}`;
+        params.push(filter.role);
+      }
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -65,7 +73,8 @@ export class PropositionRepository {
     params.push(limit, offset);
 
     const dataSql = `
-      SELECT DISTINCT p.* FROM ${from}
+      SELECT DISTINCT p.id, p.external_id, p.type, p.number, p.year, p.title, p.summary, p.status, p.keywords, p.url, p.presented_at, p.updated_at
+      FROM ${from}
       ${whereSql}
       ORDER BY p.presented_at DESC NULLS LAST, p.id DESC
       LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
@@ -92,7 +101,8 @@ export class PropositionRepository {
     if (role) params.push(role);
 
     const { rows } = await this.pool.query(
-      `SELECT p.* FROM propositions p
+      `SELECT p.id, p.external_id, p.type, p.number, p.year, p.title, p.summary, p.status, p.keywords, p.url, p.presented_at, p.updated_at
+         FROM propositions p
          JOIN proposition_authors pa ON pa.proposition_id = p.id
          WHERE pa.deputy_id = $1 ${roleClause}
          ORDER BY p.presented_at DESC NULLS LAST

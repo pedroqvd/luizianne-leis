@@ -99,7 +99,7 @@ export class VoteRepository {
     return { isNew: rows[0]?.is_new === true };
   }
 
-  async list(limit = 100, offset = 0, absencesOnly = false) {
+  async list(deputyId: number, limit = 100, offset = 0, absencesOnly = false) {
     const { rows } = await this.pool.query(
       `SELECT v.id, v.proposition_id, v.vote, v.session_id, v.date, v.is_absence,
               p.title AS proposition_title, p.type AS proposition_type,
@@ -107,10 +107,11 @@ export class VoteRepository {
          FROM votes v
          JOIN propositions p ON p.id = v.proposition_id
          LEFT JOIN deputies d ON d.id = v.deputy_id
-         WHERE ($3::boolean = false OR v.is_absence = true)
+         WHERE v.deputy_id = $4
+           AND ($3::boolean = false OR v.is_absence = true)
          ORDER BY v.date DESC NULLS LAST
          LIMIT $1 OFFSET $2`,
-      [limit, offset, absencesOnly],
+      [limit, offset, absencesOnly, deputyId],
     );
     return rows;
   }

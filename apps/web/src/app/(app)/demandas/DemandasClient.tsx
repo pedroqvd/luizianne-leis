@@ -51,6 +51,7 @@ export function DemandasClient({ demands: initial, members }: Props) {
     { key: 'em_andamento',  label: 'Em andamento',   count: demands.filter(d => d.status === 'em_andamento').length },
     { key: 'aguardando',    label: 'Aguardando',      count: demands.filter(d => d.status === 'aguardando').length },
     { key: 'resolvido',     label: 'Resolvidos',      count: demands.filter(d => d.status === 'resolvido').length },
+    { key: 'arquivado',     label: 'Arquivados',      count: demands.filter(d => d.status === 'arquivado').length },
   ];
 
   const filtered = activeFilter === 'todas' ? demands : demands.filter(d => d.status === activeFilter);

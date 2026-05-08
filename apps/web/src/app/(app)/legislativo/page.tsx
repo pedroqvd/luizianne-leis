@@ -39,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default async function LegislativoPage({
   searchParams,
 }: {
-  searchParams: { type?: string; year?: string; status?: string; search?: string; page?: string };
+  searchParams: { type?: string; year?: string; status?: string; role?: string; search?: string; page?: string };
 }) {
   const parsedPage = Number(searchParams.page ?? 1);
   const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
@@ -49,6 +49,7 @@ export default async function LegislativoPage({
   if (searchParams.type)   qs.set('type', searchParams.type);
   if (searchParams.year)   qs.set('year', searchParams.year);
   if (searchParams.status) qs.set('status', searchParams.status);
+  if (searchParams.role)   qs.set('role', searchParams.role);
   if (searchParams.search) qs.set('search', searchParams.search);
   qs.set('limit', String(PAGE_SIZE));
   qs.set('offset', String(offset));
@@ -107,6 +108,12 @@ export default async function LegislativoPage({
             <option value="">Todos os tipos</option>
             {['PL', 'PEC', 'PLP', 'REQ', 'INC', 'EMC'].map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
+          <select name="role" defaultValue={searchParams.role ?? ''} className="input w-auto text-xs">
+            <option value="">Qualquer papel</option>
+            <option value="autor">Autorias</option>
+            <option value="relator">Relatorias</option>
+            <option value="coautor">Coautorias</option>
+          </select>
           <input name="year" defaultValue={searchParams.year ?? ''} placeholder="Ano" className="input w-24 text-xs" />
           <button type="submit" className="btn-primary text-xs py-2">
             <Filter className="w-3.5 h-3.5" /> Filtrar
@@ -162,24 +169,22 @@ export default async function LegislativoPage({
         )}
       </div>
 
-      {/* ── Emendas Legislativas ── */}
+      {/* ── PECs (Propostas de Emenda à Constituição) ── */}
       <section className="space-y-4 pt-2">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-purple-50 rounded-xl border border-purple-100">
             <Scale className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-800">Emendas Legislativas</h2>
-            <p className="text-xs text-slate-500">Emendas a PLs, PECs, substitutivos e destaques apresentados</p>
+            <h2 className="text-base font-semibold text-slate-800">Propostas de Emenda à Constituição (PEC)</h2>
+            <p className="text-xs text-slate-500">PECs com autoria, coautoria ou relatoria da deputada</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { label: 'Emenda Constitucional (PEC)', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: Scale },
-            { label: 'Emenda a Projeto de Lei',      color: 'bg-indigo-50 border-indigo-200 text-indigo-700', icon: FileText },
-            { label: 'Substitutivo',                  color: 'bg-blue-50 border-blue-200 text-blue-700',     icon: FileText },
-            { label: 'Destaque',                      color: 'bg-sky-50 border-sky-200 text-sky-700',        icon: CheckCircle2 },
+            { label: 'PEC (Proposta de Emenda à Constituição)', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: Scale },
+            { label: 'Emendas à PEC (EMC/EMP)',      color: 'bg-indigo-50 border-indigo-200 text-indigo-700', icon: FileText },
           ].map(({ label, color, icon: Icon }) => (
             <div key={label} className={`rounded-xl border px-4 py-3 flex items-center gap-2 text-sm font-medium ${color}`}>
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -192,7 +197,7 @@ export default async function LegislativoPage({
           <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-purple-500" />
-              PECs apresentadas
+              Últimas PECs
             </span>
             <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full font-medium">
               {legData.total} registros

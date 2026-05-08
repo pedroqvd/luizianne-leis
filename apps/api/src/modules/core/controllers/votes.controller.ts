@@ -23,6 +23,11 @@ export class VotesController {
     );
   }
 
+  @Get('stats/target')
+  async statsTarget() {
+    return this.service.statsTarget();
+  }
+
   @Get('stats/:deputy_id')
   stats(@Param('deputy_id', ParseIntPipe) id: number) {
     return this.service.stats(id);

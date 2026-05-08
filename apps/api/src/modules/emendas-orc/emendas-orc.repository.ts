@@ -76,16 +76,24 @@ export class EmendasOrcRepository {
     const limit  = Math.min(filter.limit ?? 60, 200);
     const offset = filter.offset ?? 0;
 
+    const limitIdx = i++;
+    const offsetIdx = i++;
+    params.push(limit, offset);
+
     const [data, count] = await Promise.all([
       this.pool.query(
-        `SELECT * FROM emendas_orcamentarias ${whereSql}
+        `SELECT id, ano, codigo_emenda, numero_emenda, tipo_emenda,
+                funcao, descricao_funcao, subfuncao, descricao_subfuncao, descricao,
+                valor_dotacao, valor_empenhado, valor_liquidado, valor_pago,
+                orgao_orcamentario, municipio, uf, situacao
+         FROM emendas_orcamentarias ${whereSql}
          ORDER BY ano DESC, valor_dotacao DESC NULLS LAST
-         LIMIT ${limit} OFFSET ${offset}`,
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
         params,
       ),
       this.pool.query(
         `SELECT COUNT(*)::int AS c FROM emendas_orcamentarias ${whereSql}`,
-        params,
+        params.slice(0, -2),
       ),
     ]);
 
