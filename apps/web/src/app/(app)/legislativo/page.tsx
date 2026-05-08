@@ -141,8 +141,7 @@ export default async function LegislativoPage({
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {(() => { const href = camaraUrl(p); return href ? (
                       <a href={href} target="_blank" rel="noopener noreferrer" title="Ver na Câmara"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-700 hover:bg-brand-50 transition-colors"
-                        onClick={(e) => e.stopPropagation()}>
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-700 hover:bg-brand-50 transition-colors">
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     ) : null; })()}
