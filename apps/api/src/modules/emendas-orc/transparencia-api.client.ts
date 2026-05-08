@@ -143,7 +143,7 @@ export class TransparenciaApiClient {
 
   async *iterEmendasAno(ano: number): AsyncGenerator<TransparenciaEmenda> {
     let page = 1;
-    while (true) {
+    while (page <= 200) { // FIX: circuit breaker guard
       const items = await this.listEmendas(ano, page, 100);
       if (!items.length) break;
       yield* items;

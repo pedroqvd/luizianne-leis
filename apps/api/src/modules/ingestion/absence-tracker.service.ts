@@ -59,7 +59,7 @@ export class AbsenceTrackerService {
     let absences = 0;
     let page = 1;
 
-    while (true) {
+    while (page <= 500) {
       const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(dataInicio, dataFim, page));
       if (!items.length) break;
 
@@ -122,7 +122,7 @@ export class AbsenceTrackerService {
       let monthChecked = 0;
       let monthAbsences = 0;
 
-      while (true) {
+      while (page <= 500) {
         const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(monthStart, monthEnd, page));
         if (!items.length) break;
 
