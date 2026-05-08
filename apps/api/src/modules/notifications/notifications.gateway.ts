@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, HttpException } from '@nestjs/common';
 import { Subject, Observable, finalize } from 'rxjs';
 import { DomainEvent } from '../../shared/event-bus';
 
@@ -30,7 +30,7 @@ export class NotificationsGateway implements OnModuleDestroy {
   stream(): Observable<DomainEvent> {
     if (this.activeConnections >= this.maxConnections) {
       this.logger.warn(`SSE connection rejected — limit reached (${this.maxConnections})`);
-      throw new import('@nestjs/common').HttpException('Too many SSE connections', 429);
+      throw new HttpException('Too many SSE connections', 429);
     }
 
     this.activeConnections++;
