@@ -209,7 +209,7 @@ export class AbsenceTrackerService {
   private async ensureProposition(p: {
     id: number; siglaTipo?: string; numero?: number; ano?: number; ementa?: string; uri?: string;
   }) {
-    let prop = await this.props.findByExternalId(p.id);
+    const prop = await this.props.findByExternalId(p.id);
     if (prop) return prop;
 
     try {

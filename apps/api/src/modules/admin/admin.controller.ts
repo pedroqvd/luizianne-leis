@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Headers, HttpCode, Post, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Headers, HttpCode, Post, Query, Logger } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { timingSafeEqual } from 'node:crypto';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
@@ -81,7 +81,7 @@ export class AdminController {
     this.assertAuth(token);
     // FIX #19: Log errors instead of silently swallowing them
     this.absence.checkAllHistoricalAbsences(from, to).catch((err) => {
-      const logger = new (require('@nestjs/common').Logger)('AdminController');
+      const logger = new Logger('AdminController');
       logger.error(`Historical absence backfill failed: ${err.message}`, err.stack);
     });
     return {

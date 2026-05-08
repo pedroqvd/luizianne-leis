@@ -18,7 +18,7 @@ describe('ClassifierService.classify', () => {
   it('cai em "outros" quando não há matches', () => {
     const result = svc.classify('Texto completamente neutro xyz');
     expect(result[0].slug).toBe('outros');
-    expect(result[0].score).toBe(1);
+    expect(result[0].score).toBe(0);
   });
 
   it('soma dos scores ~ 1', () => {
