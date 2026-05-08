@@ -18,16 +18,16 @@ export interface PropositionFilter {
 export class PropositionRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findById(id: number): Promise<Proposition | null> {
-    const { rows } = await this.pool.query(
+  async findById(id: number, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<Proposition | null> {
+    const { rows } = await db.query(
       `SELECT * FROM propositions WHERE id = $1 LIMIT 1`,
       [id],
     );
     return rows[0] ?? null;
   }
 
-  async findByExternalId(externalId: number): Promise<Proposition | null> {
-    const { rows } = await this.pool.query(
+  async findByExternalId(externalId: number, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<Proposition | null> {
+    const { rows } = await db.query(
       `SELECT * FROM propositions WHERE external_id = $1 LIMIT 1`,
       [externalId],
     );
@@ -114,12 +114,12 @@ export class PropositionRepository {
     url?: string | null;
     presented_at?: string | null;
     payload?: any;
-  }): Promise<{ proposition: Proposition; isNew: boolean; statusChanged: boolean }> {
-    const existing = await this.findByExternalId(p.external_id);
+  }, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<{ proposition: Proposition; isNew: boolean; statusChanged: boolean }> {
+    const existing = await this.findByExternalId(p.external_id, db);
     const isNew = !existing;
     const statusChanged = !!existing && existing.status !== p.status;
 
-    const { rows } = await this.pool.query(
+    const { rows } = await db.query(
       `INSERT INTO propositions
          (external_id, type, number, year, title, summary, status, keywords, url, presented_at, payload, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
@@ -155,7 +155,7 @@ export class PropositionRepository {
 
     const snapshot = JSON.stringify({ ...proposition, updated_at: undefined });
     const hash = crypto.createHash('sha256').update(snapshot).digest('hex');
-    await this.pool.query(
+    await db.query(
       `INSERT INTO proposition_versions (proposition_id, snapshot, snapshot_hash)
        VALUES ($1, $2, $3)
        ON CONFLICT (proposition_id, snapshot_hash) DO NOTHING`,
@@ -170,8 +170,9 @@ export class PropositionRepository {
     deputyId: number,
     role: AuthorRole,
     ordem: number | null = null,
+    db: import('pg').Pool | import('pg').PoolClient = this.pool
   ): Promise<{ isNew: boolean }> {
-    const { rowCount } = await this.pool.query(
+    const { rowCount } = await db.query(
       `INSERT INTO proposition_authors (proposition_id, deputy_id, role, ordem)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (proposition_id, deputy_id, role) DO NOTHING`,
@@ -188,11 +189,11 @@ export class PropositionRepository {
     status_at_time: string | null;
     date: string | null;
     payload?: any;
-  }): Promise<{ isNew: boolean }> {
+  }, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<{ isNew: boolean }> {
     const hashSrc = `${p.proposition_id}|${p.sequence}|${p.description}|${p.date}`;
     const hash = crypto.createHash('sha256').update(hashSrc).digest('hex');
 
-    const { rowCount } = await this.pool.query(
+    const { rowCount } = await db.query(
       `INSERT INTO proceedings
          (proposition_id, sequence, description, body, status_at_time, date, payload, hash)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)

@@ -49,10 +49,10 @@ export class VoteRepository {
     date: string | null;
     is_absence?: boolean;
     payload?: any;
-  }): Promise<{ isNew: boolean }> {
+  }, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<{ isNew: boolean }> {
     // FIX B4: Se deputy_id é null, verificar manualmente antes de inserir
     if (v.deputy_id === null) {
-      const { rows: existing } = await this.pool.query(
+      const { rows: existing } = await db.query(
         `SELECT id FROM votes
          WHERE proposition_id = $1 AND deputy_id IS NULL AND session_id = $2
          LIMIT 1`,
@@ -60,7 +60,7 @@ export class VoteRepository {
       );
       if (existing.length > 0) {
         // Atualizar o existente
-        await this.pool.query(
+        await db.query(
           `UPDATE votes SET vote = $1, date = $2, is_absence = $3, payload = $4
            WHERE id = $5`,
           [v.vote, v.date, v.is_absence ?? false, v.payload ?? null, existing[0].id],
@@ -68,7 +68,7 @@ export class VoteRepository {
         return { isNew: false };
       }
       // Inserir novo
-      await this.pool.query(
+      await db.query(
         `INSERT INTO votes (proposition_id, deputy_id, vote, session_id, date, is_absence, payload)
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [v.proposition_id, v.deputy_id, v.vote, v.session_id, v.date, v.is_absence ?? false, v.payload ?? null],
@@ -77,7 +77,7 @@ export class VoteRepository {
     }
 
     // Caso normal: deputy_id NOT NULL — ON CONFLICT funciona corretamente
-    const { rows } = await this.pool.query(
+    const { rows } = await db.query(
       `INSERT INTO votes (proposition_id, deputy_id, vote, session_id, date, is_absence, payload)
        VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (proposition_id, deputy_id, session_id) DO UPDATE

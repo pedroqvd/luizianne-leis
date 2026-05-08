@@ -222,7 +222,11 @@ export class IngestionService {
     const remote = await this.api.getProposition(externalId);
     if (!remote) return { eventsEmitted };
 
-    const { proposition, isNew, statusChanged } = await this.props.upsert({
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { proposition, isNew, statusChanged } = await this.props.upsert({
       external_id: remote.id,
       type: remote.siglaTipo,
       number: remote.numero ?? null,
@@ -234,7 +238,7 @@ export class IngestionService {
       url: camaraPropositionWebUrl(remote.id),
       presented_at: remote.dataApresentacao ?? null,
       payload: remote,
-    });
+    }, client);
 
     if (isNew) {
       pendingEvents.push({
@@ -254,15 +258,17 @@ export class IngestionService {
       eventsEmitted++;
     }
 
-    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId);
+    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId, client);
     eventsEmitted += authorEvents.count;
     pendingEvents.push(...authorEvents.events);
 
-    await this.syncProceedings(proposition.id, externalId);
+    await this.syncProceedings(proposition.id, externalId, client);
 
-    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId);
+    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId, client);
     eventsEmitted += voteEvents.count;
     pendingEvents.push(...voteEvents.events);
+
+    await client.query('COMMIT');
 
     if (isNew || statusChanged) {
       await this.classifier.classifyAndPersist(
@@ -277,9 +283,15 @@ export class IngestionService {
     }
 
     return { eventsEmitted };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
-  private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number) {
+  private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
@@ -295,7 +307,7 @@ export class IngestionService {
             name: a.nome ?? 'Deputado(a)',
             party: a.siglaPartido ?? null,
             state: a.siglaUf ?? null,
-          });
+          }, client);
         }
 
         const role = mapAuthorRole(a.tipo, a.proponente, a.ordemAssinatura);
@@ -304,6 +316,7 @@ export class IngestionService {
           dep.id,
           role,
           a.ordemAssinatura ?? null,
+          client
         );
 
         if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
@@ -346,7 +359,7 @@ export class IngestionService {
     }
   }
 
-  private async syncProceedings(propositionId: number, externalPropId: number) {
+  private async syncProceedings(propositionId: number, externalPropId: number, client: import('pg').PoolClient) {
     try {
       const items = await this.api.getPropositionProceedings(externalPropId);
       for (const t of items) {
@@ -359,7 +372,7 @@ export class IngestionService {
             status_at_time: t.descricaoSituacao ?? null,
             date: t.dataHora ?? null,
             payload: t,
-          });
+          }, client);
         } catch (e: any) {
           this.logger.debug(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
         }
@@ -369,7 +382,7 @@ export class IngestionService {
     }
   }
 
-  private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number) {
+  private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
@@ -385,7 +398,7 @@ export class IngestionService {
             dep = await this.deputies.upsert({
               external_id: externalId,
               name: det.deputado_?.nome ?? 'Deputado(a)',
-            });
+            }, client);
           }
 
           const { isNew } = await this.votes.upsert({
@@ -395,7 +408,7 @@ export class IngestionService {
             session_id: String(v.id),
             date: v.dataHoraRegistro ?? v.data ?? null,
             payload: { voting: v, detail: det },
-          });
+          }, client);
           if (isNew && dep.id === targetDeputyId) {
             events.push({
               type: 'NEW_VOTE',
