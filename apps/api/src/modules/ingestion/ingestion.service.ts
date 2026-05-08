@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
 import {
   CamaraApiClient,

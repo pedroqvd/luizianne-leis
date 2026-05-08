@@ -8,7 +8,7 @@ describe('ClassifierService (heuristic-v2)', () => {
 
   beforeEach(async () => {
     jest.resetModules();
-    const mockPool = { query: jest.fn() };
+    const mockPool: any = { query: jest.fn() };
     const { ClassifierService } = await import('../../nlp/classifier.service');
     service = new ClassifierService(mockPool);
   });

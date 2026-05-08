@@ -4,6 +4,7 @@
  */
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import * as crypto from 'node:crypto';
 
 // Mock do environment
 const originalEnv = process.env;
@@ -44,35 +45,33 @@ describe('JwtAuthGuard', () => {
 
   it('should reject requests without Authorization header', async () => {
     const ctx = mockContext({});
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Token de autenticação ausente');
   });
 
   it('should reject requests with invalid Bearer format', async () => {
     const ctx = mockContext({ authorization: 'Basic abc123' });
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Token de autenticação ausente');
   });
 
   it('should reject requests with invalid JWT structure', async () => {
     const ctx = mockContext({ authorization: 'Bearer not-a-jwt' });
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Token inválido ou expirado');
   });
 
   it('should reject expired tokens', async () => {
     // Create a token that's expired (exp in the past)
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({ sub: '123', exp: 1 })).toString('base64url');
-    const crypto = require('node:crypto');
     const sig = crypto.createHmac('sha256', 'test-secret-key-for-unit-tests').update(`${header}.${payload}`).digest('base64url');
     const token = `${header}.${payload}.${sig}`;
 
     const ctx = mockContext({ authorization: `Bearer ${token}` });
-    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctx)).rejects.toThrow('Token inválido ou expirado');
   });
 
   it('should accept valid tokens', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({ sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
-    const crypto = require('node:crypto');
     const sig = crypto.createHmac('sha256', 'test-secret-key-for-unit-tests').update(`${header}.${payload}`).digest('base64url');
     const token = `${header}.${payload}.${sig}`;
 
