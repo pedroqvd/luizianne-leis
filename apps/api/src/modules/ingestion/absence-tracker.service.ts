@@ -44,7 +44,7 @@ export class AbsenceTrackerService {
     dataInicio: string,
     dataFim: string,
   ): Promise<{ checked: number; absences: number; deputy_found: boolean }> {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
       this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
@@ -89,7 +89,7 @@ export class AbsenceTrackerService {
     fromDate?: string,
     toDate_?: string,
   ): Promise<{ total_checked: number; total_absences: number; months_processed: number; deputy_found: boolean }> {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
       this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);

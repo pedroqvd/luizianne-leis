@@ -47,7 +47,7 @@ export class IngestionService {
   ) {}
 
   async runFullSync(): Promise<{ deputies: number; propositions: number; events: number }> {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     this.logger.log(`starting full sync for deputy ${externalId}`);
 
     const deputy = await this.syncDeputy(externalId);
