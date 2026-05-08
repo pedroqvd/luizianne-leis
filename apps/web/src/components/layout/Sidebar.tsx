@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
@@ -53,8 +54,7 @@ export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
       <div className="px-5 py-6 border-b border-white/5">
         <div className="flex items-center">
           <div className="bg-white rounded-lg px-2 py-1.5 shadow">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-8 w-auto" />
+            <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={160} height={32} className="h-8 w-auto" />
           </div>
         </div>
       </div>

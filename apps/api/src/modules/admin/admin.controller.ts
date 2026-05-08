@@ -1,14 +1,15 @@
-import { Controller, ForbiddenException, Headers, HttpCode, Post, Query, Logger } from '@nestjs/common';
+import { Controller, HttpCode, Post, Query, Logger, UseGuards } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { timingSafeEqual } from 'node:crypto';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
 import { LawsAlertService } from '../ingestion/laws-alert.service';
 import { ClassifierService } from '../nlp/classifier.service';
 import { EditaisIngestion } from '../editais/editais.ingestion';
 import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
+import { AdminGuard } from './admin.guard';
 
 @ApiTags('admin')
+@UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
   constructor(
@@ -21,65 +22,42 @@ export class AdminController {
   ) {}
 
   @Post('ingest')
-  async triggerIngest(@Headers('x-admin-token') token?: string) {
-    this.assertAuth(token);
+  async triggerIngest() {
     const job = await this.queue.enqueueFullSync();
     return { enqueued: true, jobId: job.id };
   }
 
   @Post('reclassify')
-  async reclassify(
-    @Headers('x-admin-token') token?: string,
-    @Query('force') force?: string,
-  ) {
-    this.assertAuth(token);
+  async reclassify(@Query('force') force?: string) {
     return this.classifier.reclassifyAll(force === 'true');
   }
 
   @Post('ingest-editais')
-  async triggerEditais(@Headers('x-admin-token') token?: string) {
-    this.assertAuth(token);
+  async triggerEditais() {
     const result = await this.editaisIngestion.ingest();
     return { ok: true, ...result };
   }
 
   @Post('ingest-emendas-orc')
-  async triggerEmendasOrc(@Headers('x-admin-token') token?: string) {
-    this.assertAuth(token);
+  async triggerEmendasOrc() {
     const result = await this.emendasIngestion.ingest();
     return { ok: true, ...result };
   }
 
   @Post('check-absences')
-  async triggerAbsences(
-    @Headers('x-admin-token') token?: string,
-    @Query('days') days?: string,
-  ) {
-    this.assertAuth(token);
+  async triggerAbsences(@Query('days') days?: string) {
     const result = await this.absence.checkRecentAbsences(days ? Number(days) : 7);
     return { ok: true, ...result };
   }
 
-  /**
-   * Retroage toda a história de ausências em votações nominais.
-   * Processa mês a mês desde INGEST_DATA_INICIO (2015-02-01 por padrão) até hoje.
-   * Pode levar vários minutos — execute via curl/Swagger em background.
-   *
-   * Query params opcionais:
-   *   from=YYYY-MM-DD  (padrão: INGEST_DATA_INICIO)
-   *   to=YYYY-MM-DD    (padrão: hoje)
-   */
   @Post('check-absences-historical')
   @HttpCode(202)
   @ApiQuery({ name: 'from', required: false, type: String, example: '2015-02-01', description: 'Data início (padrão: INGEST_DATA_INICIO)' })
   @ApiQuery({ name: 'to',   required: false, type: String, example: '2026-12-31', description: 'Data fim (padrão: hoje)' })
   async triggerHistoricalAbsences(
-    @Headers('x-admin-token') token?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    this.assertAuth(token);
-    // FIX #19: Log errors instead of silently swallowing them
     this.absence.checkAllHistoricalAbsences(from, to).catch((err) => {
       const logger = new Logger('AdminController');
       logger.error(`Historical absence backfill failed: ${err.message}`, err.stack);
@@ -93,24 +71,8 @@ export class AdminController {
   }
 
   @Post('check-laws')
-  async triggerLawsAlert(@Headers('x-admin-token') token?: string) {
-    this.assertAuth(token);
+  async triggerLawsAlert() {
     const result = await this.laws.checkApprovedLaws();
     return { ok: true, ...result };
-  }
-
-  // FIX #3 (CRÍTICO): Usa timingSafeEqual para impedir timing attack na comparação do token
-  private assertAuth(token?: string) {
-    const expected = process.env.ADMIN_TOKEN;
-    if (!expected) throw new ForbiddenException('ADMIN_TOKEN não configurado no servidor');
-    if (!token) throw new ForbiddenException('token ausente');
-
-    const tokenBuf = Buffer.from(token);
-    const expectedBuf = Buffer.from(expected);
-
-    // timingSafeEqual exige buffers de mesmo tamanho — se tamanhos diferem, rejeitar
-    if (tokenBuf.length !== expectedBuf.length || !timingSafeEqual(tokenBuf, expectedBuf)) {
-      throw new ForbiddenException('token inválido');
-    }
   }
 }
