@@ -54,9 +54,6 @@ import { JwtAuthGuard } from './infra/auth';
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    // FIX #2 (CRÍTICO): JWT auth guard global — todos os endpoints exigem Bearer token
-    // exceto os marcados com @Public()
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })
 export class AppModule {}
