@@ -9,8 +9,6 @@ import { IngestionScheduler } from './ingestion.scheduler';
 import { IngestionQueue } from './ingestion.queue';
 import { AbsenceTrackerService } from './absence-tracker.service';
 import { LawsAlertService } from './laws-alert.service';
-import { EventBus } from '../../shared/event-bus';
-
 @Module({
   imports: [CoreModule, NlpModule, CommissionsModule, NotificationsModule],
   providers: [
@@ -20,7 +18,6 @@ import { EventBus } from '../../shared/event-bus';
     IngestionQueue,
     AbsenceTrackerService,
     LawsAlertService,
-    EventBus,
   ],
   exports: [IngestionService, IngestionQueue, AbsenceTrackerService, LawsAlertService],
 })
