@@ -1,5 +1,6 @@
 import { Controller, HttpCode, Post, Query, Logger, UseGuards } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
 import { LawsAlertService } from '../ingestion/laws-alert.service';
@@ -9,6 +10,7 @@ import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
 import { AdminGuard } from './admin.guard';
 
 @ApiTags('admin')
+@Public()
 @UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
