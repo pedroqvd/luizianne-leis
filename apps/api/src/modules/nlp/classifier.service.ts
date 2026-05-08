@@ -63,22 +63,38 @@ export class ClassifierService {
       .sort((a, b) => b.score - a.score);
   }
 
-  async classifyAndPersist(propositionId: number, text: string): Promise<number> {
-    const scores = this.classify(text);
-    if (!scores.length) return 0;
+  /**
+   * Classifica e persiste de forma atômica para múltiplas proposições (Bulk Insert)
+   * FIX #1 (CRÍTICO): Evita problema de N+1 queries gerando I/O bloqueante.
+   */
+  async classifyAndPersistBulk(propositions: Array<{ id: number; text: string }>): Promise<number> {
+    const values: any[] = [];
+    let paramIndex = 1;
 
-    let saved = 0;
-    for (const { slug, score } of scores) {
-      const { rowCount } = await this.pool.query(
-        `INSERT INTO proposition_categories (proposition_id, category_id, score, classifier, classified_at)
-         SELECT $1, c.id, $2, $3, now() FROM categories c WHERE c.slug = $4
-         ON CONFLICT (proposition_id, category_id, classifier) DO UPDATE
-           SET score = EXCLUDED.score, classified_at = now()`,
-        [propositionId, score, this.classifierName, slug],
-      );
-      saved += rowCount ?? 0;
+    for (const p of propositions) {
+      const scores = this.classify(p.text);
+      for (const { slug, score } of scores) {
+        values.push({ propId: p.id, score, slug });
+      }
     }
-    return saved;
+
+    if (values.length === 0) return 0;
+
+    const sqlValues = values.map(() => `($${paramIndex++}, (SELECT id FROM categories WHERE slug = $${paramIndex++}), $${paramIndex++}, $${paramIndex++}, now())`).join(', ');
+    const flatParams = values.flatMap(v => [v.propId, v.slug, v.score, this.classifierName]);
+
+    const { rowCount } = await this.pool.query(
+      `INSERT INTO proposition_categories (proposition_id, category_id, score, classifier, classified_at)
+       VALUES ${sqlValues}
+       ON CONFLICT (proposition_id, category_id, classifier) DO UPDATE
+         SET score = EXCLUDED.score, classified_at = now()`,
+      flatParams,
+    );
+    return rowCount ?? 0;
+  }
+
+  async classifyAndPersist(propositionId: number, text: string): Promise<number> {
+    return this.classifyAndPersistBulk([{ id: propositionId, text }]);
   }
 
   /**
@@ -97,10 +113,14 @@ export class ClassifierService {
     const { rows } = await this.pool.query(sql, params);
 
     let processed = 0;
-    for (const r of rows) {
-      const text = `${r.title ?? ''} ${r.summary ?? ''}`;
-      await this.classifyAndPersist(r.id, text);
-      processed++;
+    const batchSize = 1000;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize).map(r => ({
+        id: r.id,
+        text: `${r.title ?? ''} ${r.summary ?? ''}`,
+      }));
+      await this.classifyAndPersistBulk(batch);
+      processed += batch.length;
     }
     this.logger.log(`reclassified ${processed} propositions`);
     return { processed };

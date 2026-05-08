@@ -59,7 +59,7 @@ export class IngestionService {
     let totalEvents = 0;
     let page = 1;
 
-    while (true) {
+    while (page <= 500) {
       const { items } = await this.api.listAuthoredPropositions(deputy.external_id, page, 100);
       if (!items.length) break;
 
@@ -121,7 +121,7 @@ export class IngestionService {
     let totalEvents = 0;
     let page = 1;
 
-    while (true) {
+    while (page <= 500) {
       const { items, hasNext } = await this.api.listRelatorPropositions(externalDeputyId, page, 100);
       if (!items.length) break;
 
@@ -158,7 +158,7 @@ export class IngestionService {
 
     this.logger.log(`syncing commission proposals for ${siglaOrgao}`);
 
-    while (true) {
+    while (page <= 500) {
       const { items, hasNext } = await this.api.listCommissionPropositions(siglaOrgao, page, 100);
       if (!items.length) break;
 
@@ -377,7 +377,8 @@ export class IngestionService {
         });
       }
     } catch (e: any) {
-      this.logger.debug(`commissions sync failed: ${e.message}`);
+      this.logger.error(`commissions sync failed: ${e.message}`);
+      throw e;
     }
   }
 
@@ -396,7 +397,8 @@ export class IngestionService {
             payload: t,
           }, client);
         } catch (e: any) {
-          this.logger.debug(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
+          this.logger.error(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
+          throw e; // Bubble up to trigger transaction rollback
         }
       }
     } catch (e: any) {
