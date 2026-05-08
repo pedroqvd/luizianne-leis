@@ -43,8 +43,8 @@ export class PropositionRepository {
     if (filter.year)   { where.push(`p.year = $${i++}`);   params.push(filter.year); }
     if (filter.status) { where.push(`p.status = $${i++}`); params.push(filter.status); }
     if (filter.search) {
-      where.push(`(p.title ILIKE $${i} OR p.summary ILIKE $${i})`);
-      params.push(`%${filter.search}%`);
+      where.push(`p.search_vector @@ websearch_to_tsquery('portuguese', $${i})`);
+      params.push(filter.search);
       i++;
     }
 

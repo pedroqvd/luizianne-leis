@@ -60,16 +60,17 @@ export class AbsenceTrackerService {
     let page = 1;
 
     while (true) {
-      const { items, hasNext } = await this.api.listNominalVotings(dataInicio, dataFim, page);
+      const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(dataInicio, dataFim, page));
       if (!items.length) break;
 
       for (const voting of items) {
         checked++;
         try {
-          const absent = await this.processVoting(voting, deputy.id, externalId);
+          const absent = await withRetry(() => this.processVoting(voting, deputy.id, externalId));
           if (absent) absences++;
         } catch (e: any) {
-          this.logger.warn(`absence check failed for voting ${voting.id}: ${e.message}`);
+          this.logger.error(`Fatal: absence check failed for voting ${voting.id}: ${e.message}`);
+          throw e; // Fail fast to prevent incomplete data
         }
       }
 
@@ -122,16 +123,17 @@ export class AbsenceTrackerService {
       let monthAbsences = 0;
 
       while (true) {
-        const { items, hasNext } = await this.api.listNominalVotings(monthStart, monthEnd, page);
+        const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(monthStart, monthEnd, page));
         if (!items.length) break;
 
         for (const voting of items) {
           monthChecked++;
           try {
-            const absent = await this.processVoting(voting, deputy.id, externalId);
+            const absent = await withRetry(() => this.processVoting(voting, deputy.id, externalId));
             if (absent) monthAbsences++;
           } catch (e: any) {
-            this.logger.warn(`absence check failed for voting ${voting.id}: ${e.message}`);
+            this.logger.error(`Fatal: absence check failed for voting ${voting.id}: ${e.message}`);
+            throw e; // Fail fast
           }
         }
 
@@ -230,7 +232,9 @@ export class AbsenceTrackerService {
         });
         return result.proposition;
       }
-    } catch {}
+    } catch (e: any) {
+      this.logger.warn(`ensureProposition api fetch failed: ${e.message}`);
+    }
 
     try {
       const result = await this.props.upsert({
@@ -247,8 +251,9 @@ export class AbsenceTrackerService {
         payload: p,
       });
       return result.proposition;
-    } catch {
-      return null;
+    } catch (e: any) {
+      this.logger.error(`ensureProposition fallback upsert failed: ${e.message}`);
+      throw e;
     }
   }
 }
@@ -265,4 +270,18 @@ function daysAgo(n: number): Date {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      attempt++;
+      if (attempt >= maxRetries) throw e;
+      await sleep(2000 * attempt);
+    }
+  }
+  throw new Error('Unreachable');
 }

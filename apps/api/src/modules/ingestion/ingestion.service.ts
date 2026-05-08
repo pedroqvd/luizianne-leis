@@ -98,6 +98,17 @@ export class IngestionService {
 
     await this.cache.invalidate('propositions:*');
     await this.cache.invalidate('analytics:*');
+    
+    try {
+      await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY v_categories_breakdown');
+      this.logger.log('Materialized view v_categories_breakdown refreshed.');
+    } catch (e: any) {
+      this.logger.warn(`Failed to refresh materialized view (maybe needs first non-concurrent refresh?): ${e.message}`);
+      try {
+        await this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown');
+      } catch {}
+    }
+
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
     return { deputies: 1, propositions: totalProps, events: totalEvents };
   }
@@ -268,18 +279,28 @@ export class IngestionService {
     eventsEmitted += voteEvents.count;
     pendingEvents.push(...voteEvents.events);
 
+    // FIX #9: Gravar na Outbox (dentro da transação!) em vez de memory EventBus
+    if (pendingEvents.length > 0) {
+      for (const event of pendingEvents) {
+        await client.query(
+          `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
+           VALUES ($1, $2, $3, $4)`,
+          [event.type, event.aggregateType, event.aggregateId, event.payload]
+        );
+      }
+    }
+
     await client.query('COMMIT');
 
     if (isNew || statusChanged) {
-      await this.classifier.classifyAndPersist(
-        proposition.id,
-        `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
-      );
-    }
-
-    // FIX #9: Emitir eventos APÓS todas as escritas completarem
-    for (const event of pendingEvents) {
-      this.events.emit(event as any);
+      try {
+        await this.classifier.classifyAndPersist(
+          proposition.id,
+          `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
+        );
+      } catch (e: any) {
+        this.logger.error(`classifyAndPersist failed for ${proposition.id}: ${e.message}`);
+      }
     }
 
     return { eventsEmitted };
@@ -330,7 +351,8 @@ export class IngestionService {
         }
       }
     } catch (e: any) {
-      this.logger.debug(`authors sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`authors sync failed for ${externalPropId}: ${e.message}`);
+      throw e; // Bubble up to rollback transaction
     }
     return { count, events };
   }
@@ -378,7 +400,8 @@ export class IngestionService {
         }
       }
     } catch (e: any) {
-      this.logger.debug(`proceedings sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`proceedings sync failed for ${externalPropId}: ${e.message}`);
+      throw e;
     }
   }
 
@@ -421,7 +444,8 @@ export class IngestionService {
         }
       }
     } catch (e: any) {
-      this.logger.debug(`votes sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`votes sync failed for ${externalPropId}: ${e.message}`);
+      throw e;
     }
     return { count, events };
   }
