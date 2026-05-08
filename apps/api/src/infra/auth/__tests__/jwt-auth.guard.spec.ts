@@ -58,24 +58,28 @@ describe('JwtAuthGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toThrow('Token inválido ou expirado');
   });
 
-  it('should reject expired tokens', async () => {
-    // Create a token that's expired (exp in the past)
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ sub: '123', exp: 1 })).toString('base64url');
-    const sig = crypto.createHmac('sha256', 'test-secret-key-for-unit-tests').update(`${header}.${payload}`).digest('base64url');
-    const token = `${header}.${payload}.${sig}`;
+  it('should reject expired tokens or failed auth via API', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Unauthorized',
+    });
 
-    const ctx = mockContext({ authorization: `Bearer ${token}` });
+    const ctx = mockContext({ authorization: `Bearer some-token` });
     await expect(guard.canActivate(ctx)).rejects.toThrow('Token inválido ou expirado');
   });
 
-  it('should accept valid tokens', async () => {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
-    const sig = crypto.createHmac('sha256', 'test-secret-key-for-unit-tests').update(`${header}.${payload}`).digest('base64url');
-    const token = `${header}.${payload}.${sig}`;
+  it('should accept valid tokens via API', async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'user-123' }),
+    });
 
-    const ctx = mockContext({ authorization: `Bearer ${token}` });
+    const ctx = mockContext({ authorization: `Bearer valid-token` });
     expect(await guard.canActivate(ctx)).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith('http://localhost/auth/v1/user', expect.anything());
   });
 });

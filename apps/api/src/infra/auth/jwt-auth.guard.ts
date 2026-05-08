@@ -58,7 +58,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = this.verifyJwt(token);
+      const payload = await this.verifyJwt(token);
       request.user = payload;
       return true;
     } catch (e: any) {
@@ -67,47 +67,34 @@ export class JwtAuthGuard implements CanActivate {
     }
   }
 
-  /**
-   * Verificação manual de JWT (HS256) para evitar dependência extra.
-   * Em produção robusta, considerar usar jose ou @nestjs/jwt.
-   */
-  private verifyJwt(token: string): Record<string, any> {
-    const parts = token.split('.');
-    if (parts.length !== 3) throw new Error('Invalid JWT structure');
+  private async verifyJwt(token: string): Promise<Record<string, any>> {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    const [headerB64, payloadB64, signatureB64] = parts;
-
-    // Verificar assinatura HMAC-SHA256
-    const data = `${headerB64}.${payloadB64}`;
-    const expectedSig = crypto
-      .createHmac('sha256', this.jwtSecret!)
-      .update(data)
-      .digest('base64url');
-
-    // Normalizar a assinatura recebida para base64url
-    const receivedSig = signatureB64
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-
-    const expectedBuf = Buffer.from(expectedSig);
-    const receivedBuf = Buffer.from(receivedSig);
-
-    if (expectedBuf.length !== receivedBuf.length ||
-        !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
-      throw new Error('Invalid signature');
+    if (!supabaseUrl || !anonKey) {
+      // Fallback for local development or if env vars are missing
+      // Only do this if they really didn't set the URL
+      throw new Error('Missing Supabase URL/Key for token validation');
     }
 
-    // Decodificar payload
-    const payload = JSON.parse(
-      Buffer.from(payloadB64, 'base64url').toString('utf-8'),
-    );
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          apikey: anonKey,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    // Verificar expiração
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      throw new Error('Token expired');
+      if (!response.ok) {
+        throw new Error(`Supabase auth failed: ${response.statusText}`);
+      }
+
+      const user = await response.json();
+      return user;
+    } catch (e: any) {
+      throw new Error(`Token validation failed: ${e.message}`);
     }
-
-    return payload;
   }
 }
