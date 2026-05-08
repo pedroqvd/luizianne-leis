@@ -116,43 +116,40 @@ export class AnalyticsService {
 
   /**
    * Rede de coautoria centrada na deputada-alvo.
-   * Retorna nodes (deputados) + edges (peso = número de proposições compartilhadas).
+   * FIX #3 (MÉDIO): Utiliza CTE (WITH) para resolver os parceiros direto no Postgres,
+   * evitando N+1 em memória e tráfego de arrays pelo Node.
    */
   async network() {
     return this.cache.wrap('analytics:network', 600, async () => {
       const d = await this.deputy.getTarget();
 
-      const { rows: edgesRaw } = await this.pool.query(
-        `SELECT deputy_a, deputy_b, weight
+      const { rows } = await this.pool.query(
+        `WITH top_edges AS (
+           SELECT deputy_a, deputy_b, weight
            FROM v_coauthorship_edges
            WHERE deputy_a = $1 OR deputy_b = $1
            ORDER BY weight DESC
-           LIMIT 200`,
+           LIMIT 200
+         ),
+         partner_ids AS (
+           SELECT deputy_a AS id FROM top_edges
+           UNION
+           SELECT deputy_b AS id FROM top_edges
+         )
+         SELECT
+           (SELECT json_agg(json_build_object('id', dep.id, 'name', dep.name, 'party', dep.party, 'state', dep.state))
+            FROM partner_ids p JOIN deputies dep ON dep.id = p.id) AS nodes,
+           (SELECT json_agg(json_build_object('source', e.deputy_a, 'target', e.deputy_b, 'weight', e.weight))
+            FROM top_edges e) AS edges`,
         [d.id],
       );
 
-      const partnerIds = new Set<number>();
-      for (const e of edgesRaw) {
-        partnerIds.add(e.deputy_a);
-        partnerIds.add(e.deputy_b);
-      }
-
-      const ids = Array.from(partnerIds);
-      const { rows: deputies } = ids.length
-        ? await this.pool.query(
-            `SELECT id, name, party, state FROM deputies WHERE id = ANY($1::int[])`,
-            [ids],
-          )
-        : { rows: [] };
+      const data = rows[0] || { nodes: [], edges: [] };
 
       return {
         center: d.id,
-        nodes: deputies,
-        edges: edgesRaw.map((e) => ({
-          source: e.deputy_a,
-          target: e.deputy_b,
-          weight: e.weight,
-        })),
+        nodes: data.nodes || [],
+        edges: data.edges || [],
       };
     });
   }

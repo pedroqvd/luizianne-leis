@@ -10,7 +10,7 @@ export class DeputyService {
   ) {}
 
   async getTarget() {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     return this.cache.wrap(`deputy:target:${externalId}`, 300, async () => {
       const deputy = await this.repo.findByExternalId(externalId);
       if (!deputy) throw new NotFoundException('Deputada não encontrada — rode o seed/ingestão');

@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './infra/database/database.module';
 import { RedisModule } from './infra/redis/redis.module';
 import { CacheModule } from './infra/cache/cache.module';
+import { SharedModule } from './shared/shared.module';
 import { HealthModule } from './modules/health/health.module';
 
 import { CoreModule } from './modules/core/core.module';
@@ -38,6 +39,7 @@ import { JwtAuthGuard } from './infra/auth';
     DatabaseModule,
     RedisModule,
     CacheModule,
+    SharedModule,
 
     HealthModule,
     CoreModule,

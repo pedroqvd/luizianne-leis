@@ -3,8 +3,8 @@ import { extractDeputyIdFromUri, mapAuthorRole } from './camara-api.client';
 describe('extractDeputyIdFromUri', () => {
   it('extrai id de URL de deputado', () => {
     expect(
-      extractDeputyIdFromUri('https://dadosabertos.camara.leg.br/api/v2/deputados/141401'),
-    ).toBe(141401);
+      extractDeputyIdFromUri('https://dadosabertos.camara.leg.br/api/v2/deputados/178866'),
+    ).toBe(178866);
   });
 
   it('retorna null para URL de comissão/órgão', () => {

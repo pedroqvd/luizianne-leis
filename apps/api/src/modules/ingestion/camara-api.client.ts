@@ -236,7 +236,7 @@ export class CamaraApiClient {
     itens = 100,
   ): AsyncGenerator<CamaraPropositionListItem> {
     let page = 1;
-    while (true) {
+    while (page <= 500) { // circuit breaker guard
       const { items, links } = await this.listAuthoredPropositions(deputyId, page, itens);
       for (const item of items) yield item;
       const hasNext = links.some((l) => l.rel === 'next');
@@ -262,6 +262,7 @@ export class CamaraApiClient {
   async getPropositionProceedings(id: number): Promise<CamaraProceeding[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraProceeding[]>>(
       `/proposicoes/${id}/tramitacoes`,
+      { params: { itens: 1000 } }, // FIX: API default truncates at ~100
     );
     return data?.dados ?? [];
   }
@@ -269,6 +270,7 @@ export class CamaraApiClient {
   async getPropositionVotes(id: number): Promise<CamaraVoting[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraVoting[]>>(
       `/proposicoes/${id}/votacoes`,
+      { params: { itens: 1000 } }, // FIX: API default truncates
     );
     return data?.dados ?? [];
   }
@@ -353,16 +355,27 @@ export class CamaraApiClient {
   }
 
   async getDeputyCommissions(deputyId: number): Promise<CamaraDeputyOrgao[]> {
-    const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyOrgao[]>>(
-      `/deputados/${deputyId}/orgaos`,
-      {
-        params: {
-          dataInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
-          itens: 100,
+    // FIX: Paginate to prevent silent truncation when >100 commissions
+    const allItems: CamaraDeputyOrgao[] = [];
+    let page = 1;
+    while (page <= 50) {
+      const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyOrgao[]>>(
+        `/deputados/${deputyId}/orgaos`,
+        {
+          params: {
+            dataInicio: process.env.INGEST_DATA_INICIO ?? '2015-02-01',
+            itens: 100,
+            pagina: page,
+          },
         },
-      },
-    );
-    return data?.dados ?? [];
+      );
+      const items = data?.dados ?? [];
+      allItems.push(...items);
+      const hasNext = (data?.links ?? []).some((l) => l.rel === 'next');
+      if (!hasNext || items.length < 100) break;
+      page++;
+    }
+    return allItems;
   }
 }
 

@@ -46,7 +46,7 @@ export class LawsAlertService {
             AND se.created_at >= $2
          WHERE ${APPROVED_STATUSES.map((s, i) => `p.status ILIKE $${i + 3}`).join(' OR ')}`,
       [
-        Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401),
+        Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866),
         since.toISOString(),
         ...APPROVED_STATUSES.map((s) => `%${s}%`),
       ],

@@ -25,11 +25,13 @@ export class EditaisAlerts {
     let sent = 0;
 
     for (const days of this.ALERT_DAYS) {
+      // FIX: SQL injection — use parameterized interval instead of string interpolation
       const { rows: editais } = await this.pool.query(
         `SELECT id, titulo, orgao, valor_estimado, url_fonte
            FROM editais
            WHERE situacao = 'aberto'
-             AND data_proposta_fim::date = CURRENT_DATE + INTERVAL '${days} days'`,
+             AND data_proposta_fim::date = CURRENT_DATE + ($1::int * INTERVAL '1 day')`,
+        [days],
       );
       if (!editais.length) continue;
 

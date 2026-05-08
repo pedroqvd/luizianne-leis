@@ -5,7 +5,6 @@ import { CamaraApiClient, camaraPropositionWebUrl } from './camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { PropositionRepository } from '../core/repositories/proposition.repository';
 import { VoteRepository } from '../core/repositories/vote.repository';
-import { EventBus } from '../../shared/event-bus';
 
 /**
  * Detecta ausências da deputada em votações nominais.
@@ -26,7 +25,6 @@ export class AbsenceTrackerService {
     private readonly deputies: DeputyRepository,
     private readonly props: PropositionRepository,
     private readonly votes: VoteRepository,
-    private readonly events: EventBus,
   ) {}
 
   /**
@@ -46,7 +44,7 @@ export class AbsenceTrackerService {
     dataInicio: string,
     dataFim: string,
   ): Promise<{ checked: number; absences: number; deputy_found: boolean }> {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
       this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
@@ -59,7 +57,7 @@ export class AbsenceTrackerService {
     let absences = 0;
     let page = 1;
 
-    while (true) {
+    while (page <= 500) {
       const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(dataInicio, dataFim, page));
       if (!items.length) break;
 
@@ -91,7 +89,7 @@ export class AbsenceTrackerService {
     fromDate?: string,
     toDate_?: string,
   ): Promise<{ total_checked: number; total_absences: number; months_processed: number; deputy_found: boolean }> {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const deputy = await this.deputies.findByExternalId(externalId);
     if (!deputy) {
       this.logger.warn(`Target deputy external_id=${externalId} not found in DB — run POST /admin/ingest first`);
@@ -122,7 +120,7 @@ export class AbsenceTrackerService {
       let monthChecked = 0;
       let monthAbsences = 0;
 
-      while (true) {
+      while (page <= 500) {
         const { items, hasNext } = await withRetry(() => this.api.listNominalVotings(monthStart, monthEnd, page));
         if (!items.length) break;
 
@@ -161,6 +159,11 @@ export class AbsenceTrackerService {
     return { total_checked, total_absences, months_processed, deputy_found: true };
   }
 
+  /**
+   * FIX #6 (ALTO): Migrado para Outbox Pattern transacional.
+   * O voto de ausência e o evento de notificação são gravados
+   * na mesma transação ACID. Se o processo crashar, nada é perdido.
+   */
   private async processVoting(
     voting: { id: string; data?: string; dataHoraRegistro?: string; proposicao_?: any },
     deputyId: number,
@@ -182,27 +185,39 @@ export class AbsenceTrackerService {
 
     const date = voting.dataHoraRegistro ?? voting.data ?? null;
 
-    await this.votes.upsert({
-      proposition_id: prop.id,
-      deputy_id: deputyId,
-      vote: 'Ausente',
-      session_id: voting.id,
-      date,
-      is_absence: true,
-      payload: { voting_id: voting.id, tipo: 'Nominal' },
-    });
+    // Transactional: vote + outbox event in same ACID commit
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    this.events.emit({
-      type: 'DEPUTY_ABSENT',
-      aggregateType: 'vote',
-      aggregateId: prop.id,
-      payload: {
-        session_id: voting.id,
+      await this.votes.upsert({
         proposition_id: prop.id,
-        proposition_title: prop.title,
+        deputy_id: deputyId,
+        vote: 'Ausente',
+        session_id: voting.id,
         date,
-      },
-    });
+        is_absence: true,
+        payload: { voting_id: voting.id, tipo: 'Nominal' },
+      }, client);
+
+      await client.query(
+        `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          'DEPUTY_ABSENT',
+          'vote',
+          prop.id,
+          { session_id: voting.id, proposition_id: prop.id, proposition_title: prop.title, date },
+        ],
+      );
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
     this.logger.log(`absence recorded: voting ${voting.id} prop ${prop.id}`);
     return true;

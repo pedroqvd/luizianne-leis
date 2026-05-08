@@ -28,7 +28,7 @@ export class CommissionsRepository {
   }
 
   async listForTarget() {
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 141401);
+    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const { rows } = await this.pool.query(
       `SELECT c.id AS commission_id, c.name AS commission_name, c.sigla AS commission_sigla,
               dc.id, dc.role, dc.started_at, dc.ended_at
