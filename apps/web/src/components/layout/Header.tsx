@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Bell, LogOut, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -20,8 +21,7 @@ export function MobileHeader() {
   return (
     <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
       <Link href="/" className="flex items-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-7 w-auto" />
+        <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={140} height={28} className="h-7 w-auto" />
       </Link>
 
       <div className="flex items-center gap-1">

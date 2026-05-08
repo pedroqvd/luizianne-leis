@@ -98,6 +98,17 @@ export class IngestionService {
 
     await this.cache.invalidate('propositions:*');
     await this.cache.invalidate('analytics:*');
+    
+    try {
+      await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY v_categories_breakdown');
+      this.logger.log('Materialized view v_categories_breakdown refreshed.');
+    } catch (e: any) {
+      this.logger.warn(`Failed to refresh materialized view (maybe needs first non-concurrent refresh?): ${e.message}`);
+      try {
+        await this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown');
+      } catch {}
+    }
+
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
     return { deputies: 1, propositions: totalProps, events: totalEvents };
   }
@@ -222,7 +233,11 @@ export class IngestionService {
     const remote = await this.api.getProposition(externalId);
     if (!remote) return { eventsEmitted };
 
-    const { proposition, isNew, statusChanged } = await this.props.upsert({
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { proposition, isNew, statusChanged } = await this.props.upsert({
       external_id: remote.id,
       type: remote.siglaTipo,
       number: remote.numero ?? null,
@@ -234,7 +249,7 @@ export class IngestionService {
       url: camaraPropositionWebUrl(remote.id),
       presented_at: remote.dataApresentacao ?? null,
       payload: remote,
-    });
+    }, client);
 
     if (isNew) {
       pendingEvents.push({
@@ -254,32 +269,50 @@ export class IngestionService {
       eventsEmitted++;
     }
 
-    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId);
+    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId, client);
     eventsEmitted += authorEvents.count;
     pendingEvents.push(...authorEvents.events);
 
-    await this.syncProceedings(proposition.id, externalId);
+    await this.syncProceedings(proposition.id, externalId, client);
 
-    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId);
+    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId, client);
     eventsEmitted += voteEvents.count;
     pendingEvents.push(...voteEvents.events);
 
-    if (isNew || statusChanged) {
-      await this.classifier.classifyAndPersist(
-        proposition.id,
-        `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
-      );
+    // FIX #9: Gravar na Outbox (dentro da transação!) em vez de memory EventBus
+    if (pendingEvents.length > 0) {
+      for (const event of pendingEvents) {
+        await client.query(
+          `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
+           VALUES ($1, $2, $3, $4)`,
+          [event.type, event.aggregateType, event.aggregateId, event.payload]
+        );
+      }
     }
 
-    // FIX #9: Emitir eventos APÓS todas as escritas completarem
-    for (const event of pendingEvents) {
-      this.events.emit(event as any);
+    await client.query('COMMIT');
+
+    if (isNew || statusChanged) {
+      try {
+        await this.classifier.classifyAndPersist(
+          proposition.id,
+          `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
+        );
+      } catch (e: any) {
+        this.logger.error(`classifyAndPersist failed for ${proposition.id}: ${e.message}`);
+      }
     }
 
     return { eventsEmitted };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
-  private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number) {
+  private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
@@ -295,7 +328,7 @@ export class IngestionService {
             name: a.nome ?? 'Deputado(a)',
             party: a.siglaPartido ?? null,
             state: a.siglaUf ?? null,
-          });
+          }, client);
         }
 
         const role = mapAuthorRole(a.tipo, a.proponente, a.ordemAssinatura);
@@ -304,6 +337,7 @@ export class IngestionService {
           dep.id,
           role,
           a.ordemAssinatura ?? null,
+          client
         );
 
         if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
@@ -317,7 +351,8 @@ export class IngestionService {
         }
       }
     } catch (e: any) {
-      this.logger.debug(`authors sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`authors sync failed for ${externalPropId}: ${e.message}`);
+      throw e; // Bubble up to rollback transaction
     }
     return { count, events };
   }
@@ -346,7 +381,7 @@ export class IngestionService {
     }
   }
 
-  private async syncProceedings(propositionId: number, externalPropId: number) {
+  private async syncProceedings(propositionId: number, externalPropId: number, client: import('pg').PoolClient) {
     try {
       const items = await this.api.getPropositionProceedings(externalPropId);
       for (const t of items) {
@@ -359,17 +394,18 @@ export class IngestionService {
             status_at_time: t.descricaoSituacao ?? null,
             date: t.dataHora ?? null,
             payload: t,
-          });
+          }, client);
         } catch (e: any) {
           this.logger.debug(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
         }
       }
     } catch (e: any) {
-      this.logger.debug(`proceedings sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`proceedings sync failed for ${externalPropId}: ${e.message}`);
+      throw e;
     }
   }
 
-  private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number) {
+  private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
@@ -385,7 +421,7 @@ export class IngestionService {
             dep = await this.deputies.upsert({
               external_id: externalId,
               name: det.deputado_?.nome ?? 'Deputado(a)',
-            });
+            }, client);
           }
 
           const { isNew } = await this.votes.upsert({
@@ -395,7 +431,7 @@ export class IngestionService {
             session_id: String(v.id),
             date: v.dataHoraRegistro ?? v.data ?? null,
             payload: { voting: v, detail: det },
-          });
+          }, client);
           if (isNew && dep.id === targetDeputyId) {
             events.push({
               type: 'NEW_VOTE',
@@ -408,7 +444,8 @@ export class IngestionService {
         }
       }
     } catch (e: any) {
-      this.logger.debug(`votes sync failed for ${externalPropId}: ${e.message}`);
+      this.logger.error(`votes sync failed for ${externalPropId}: ${e.message}`);
+      throw e;
     }
     return { count, events };
   }

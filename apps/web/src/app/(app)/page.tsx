@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/StatCard';
 import { ProductivityChart } from '@/components/ProductivityChart';
@@ -38,16 +39,16 @@ export default async function DashboardPage() {
       {/* Deputy header */}
       <div className="flex items-center gap-3 sm:gap-4">
         {data?.deputy.photo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={data.deputy.photo_url}
             alt={data.deputy.name}
+            width={64}
+            height={64}
             className="w-16 h-16 rounded-2xl border-2 border-white shadow-md object-cover flex-shrink-0"
           />
         ) : (
           <div className="w-16 h-16 rounded-2xl bg-white border border-slate-100 flex items-center justify-center flex-shrink-0 shadow-md p-1">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="w-full h-full object-contain" />
+            <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={64} height={64} className="w-full h-full object-contain" />
           </div>
         )}
         <div>

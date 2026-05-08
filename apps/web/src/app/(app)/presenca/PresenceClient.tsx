@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Image from 'next/image';
 import { deletePresenceRecord } from '@/app/(app)/actions/presenca';
 import { PresenceForm } from './PresenceForm';
 import { MapPin, Plus, Trash2, Calendar, Loader2 } from 'lucide-react';
@@ -126,8 +127,7 @@ export function PresenceClient({ records: initial }: Props) {
                 <div key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
                   <div className="flex gap-4 p-4">
                     {r.photo_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.photo_url} alt="" className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
+                      <Image src={r.photo_url} alt="" width={80} height={80} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">

@@ -7,8 +7,8 @@ import { Deputy } from '../../../shared/types';
 export class DeputyRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findByExternalId(externalId: number): Promise<Deputy | null> {
-    const { rows } = await this.pool.query(
+  async findByExternalId(externalId: number, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<Deputy | null> {
+    const { rows } = await db.query(
       `SELECT id, external_id, name, party, state, photo_url
          FROM deputies WHERE external_id = $1 LIMIT 1`,
       [externalId],
@@ -36,8 +36,9 @@ export class DeputyRepository {
 
   async upsert(
     d: Partial<Deputy> & { external_id: number; name: string; payload?: any },
+    db: import('pg').Pool | import('pg').PoolClient = this.pool
   ): Promise<Deputy> {
-    const { rows } = await this.pool.query(
+    const { rows } = await db.query(
       `INSERT INTO deputies (external_id, name, party, state, photo_url, payload, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, now())
        ON CONFLICT (external_id) DO UPDATE

@@ -95,8 +95,8 @@ persistidos em `system_events` e propagados via SSE.
 ## Banco
 
 Migrações em `db/migrations/` aplicadas pelo runner em `apps/api/src/infra/database/run-migrations.ts`.
-Histórico imutável: `proceedings`, `proposition_versions`, `system_events`. Índices em
-`external_id`, `(type, year)`, `status`, `presented_at`, GIN trigram em `title` e `name`.
+Histórico imutável: `proceedings`, `proposition_versions`, `system_events`, `outbox_events`.
+Busca ultra-rápida (FTS): Índices **GIN** com **TSVector** (`search_vector`) em `title` e `name` (websearch_to_tsquery).
 
 ## Cache & Rate limit
 
@@ -106,6 +106,11 @@ TTLs por endpoint. Throttling global com `@nestjs/throttler` (120 req/min defaul
 ## Diferenciais já implementados
 
 - **Diff-based ingestion** (snapshots versionados por hash → idempotente).
+- **Outbox Pattern (Garantia de Entrega)**: Eventos salvos transacionalmente (`outbox_events`) no PostgreSQL e processados de forma assíncrona com `SKIP LOCKED` para concorrência multi-node segura.
+- **Fail-Fast & Exponential Backoff**: Chamadas externas (ex: trackers de ausência) quebram propositalmente a transação ou sofrem retry exponencial para evitar falsos-positivos na base e corrupção de dados.
+- **Full Text Search (Performance)**: Buscas baseadas no algoritmo nativo `tsvector` do PostgreSQL eliminando gargalos de *Sequential Scan*.
+- **AdminGuard (Segurança Centralizada)**: Validações *timing-safe* e middlewares de segurança que protegem rotas privilegiadas com `@UseGuards`.
+- **Next.js Img Optimization**: Renderização via `<Image>` para Edge Caching em CDNs e erradicação de Cumulative Layout Shift.
 - **Rede de coautoria** com view SQL `v_coauthorship_edges` e renderização SVG.
 - **Timeline de tramitação** imutável.
 - **Classificação por NLP** (`ClassifierService`, `apps/api/src/modules/nlp`):

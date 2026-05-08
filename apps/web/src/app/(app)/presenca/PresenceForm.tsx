@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { createPresenceRecord } from '@/app/(app)/actions/presenca';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 import { MapPin, Calendar, Camera, X, Loader2 } from 'lucide-react';
 
 const TYPES = [
@@ -135,9 +136,8 @@ export function PresenceForm({ onClose }: Props) {
               <Camera className="w-3.5 h-3.5 inline mr-1" />Foto (opcional)
             </label>
             {photoPreview ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoPreview} alt="preview" className="w-full h-32 object-cover rounded-lg" />
+              <div className="relative h-32 w-full">
+                <Image src={photoPreview} alt="preview" fill className="object-cover rounded-lg" />
                 <button
                   type="button"
                   onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}

@@ -2,7 +2,7 @@
  * FIX #23: Testes unitários para JwtAuthGuard.
  * Cobre: @Public() bypass, token ausente, token expirado, token válido.
  */
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as crypto from 'node:crypto';
 

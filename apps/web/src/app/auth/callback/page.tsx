@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/client';
 import { setupUser } from '@/app/auth/actions';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import type { EmailOtpType } from '@supabase/supabase-js';
+import Image from 'next/image';
 
 export default function CallbackPage() {
   return (
@@ -130,8 +131,7 @@ function CallbackHandler() {
         <div className="relative w-full max-w-sm animate-fade-in-up">
           <div className="text-center mb-8">
             <div className="inline-block bg-white rounded-2xl px-6 py-4 shadow-lg mb-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-12 w-auto" />
+              <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={240} height={48} className="h-12 w-auto" />
             </div>
             <p className="text-slate-400 text-sm mt-1">Plataforma da Equipe</p>
           </div>
@@ -161,8 +161,7 @@ function LoadingScreen() {
     <div className="min-h-screen bg-sidebar-bg flex items-center justify-center p-4">
       <div className="relative w-full max-w-sm animate-fade-in-up text-center">
         <div className="inline-block bg-white rounded-2xl px-6 py-4 shadow-lg mb-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" className="h-12 w-auto" />
+          <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={240} height={48} className="h-12 w-auto" />
         </div>
         <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-3">
           <Loader2 className="w-7 h-7 text-brand-700 animate-spin" />
