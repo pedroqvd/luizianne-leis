@@ -9,6 +9,7 @@ describe('CacheService', () => {
 
   beforeEach(async () => {
     mockRedis = {
+      status: 'ready',
       get: jest.fn(),
       set: jest.fn(),
       scanStream: jest.fn(),
