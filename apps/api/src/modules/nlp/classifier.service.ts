@@ -68,27 +68,36 @@ export class ClassifierService {
    * FIX #1 (CRÍTICO): Evita problema de N+1 queries gerando I/O bloqueante.
    */
   async classifyAndPersistBulk(propositions: Array<{ id: number; text: string }>): Promise<number> {
-    const values: any[] = [];
-    let paramIndex = 1;
+    const entries: Array<{ propId: number; slug: string; score: number }> = [];
 
     for (const p of propositions) {
       const scores = this.classify(p.text);
       for (const { slug, score } of scores) {
-        values.push({ propId: p.id, score, slug });
+        entries.push({ propId: p.id, slug, score });
       }
     }
 
-    if (values.length === 0) return 0;
+    if (entries.length === 0) return 0;
 
-    const sqlValues = values.map(() => `($${paramIndex++}, (SELECT id FROM categories WHERE slug = $${paramIndex++}), $${paramIndex++}, $${paramIndex++}, now())`).join(', ');
-    const flatParams = values.flatMap(v => [v.propId, v.slug, v.score, this.classifierName]);
+    // Build parameterized VALUES clauses safely
+    const valueClauses: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    for (const entry of entries) {
+      valueClauses.push(
+        `($${idx}, (SELECT id FROM categories WHERE slug = $${idx + 1}), $${idx + 2}, $${idx + 3}, now())`,
+      );
+      params.push(entry.propId, entry.slug, entry.score, this.classifierName);
+      idx += 4;
+    }
 
     const { rowCount } = await this.pool.query(
       `INSERT INTO proposition_categories (proposition_id, category_id, score, classifier, classified_at)
-       VALUES ${sqlValues}
+       VALUES ${valueClauses.join(', ')}
        ON CONFLICT (proposition_id, category_id, classifier) DO UPDATE
          SET score = EXCLUDED.score, classified_at = now()`,
-      flatParams,
+      params,
     );
     return rowCount ?? 0;
   }
