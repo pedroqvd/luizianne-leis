@@ -115,6 +115,12 @@ export class TransparenciaApiClient {
 
   get available() { return this.http !== null; }
 
+  /**
+   * FIX #7 (MÉDIO): Executa TODAS as estratégias de busca em paralelo
+   * e deduplica resultados por codigoEmenda. A versão anterior parava
+   * na primeira strategy que retornasse dados, potencialmente perdendo
+   * emendas registradas com variação de nome.
+   */
   async listEmendas(ano: number, page = 1, size = 100): Promise<TransparenciaEmenda[]> {
     if (!this.http) return [];
 
@@ -128,17 +134,37 @@ export class TransparenciaApiClient {
       { ano, pagina: page, quantidade: size, nomeAutor: 'LUIZIANNE' },
     ];
 
-    for (const params of strategies) {
-      try {
-        const { data } = await this.http.get('/emendas', { params });
-        this.logger.log(`listEmendas(${ano} p${page}) params=${JSON.stringify(params)} → raw type=${typeof data}, isArray=${Array.isArray(data)}, length=${Array.isArray(data) ? data.length : JSON.stringify(data).slice(0, 200)}`);
-        const results = Array.isArray(data) ? data : [];
-        if (results.length > 0) return results;
-      } catch (e: any) {
-        this.logger.warn(`listEmendas(${ano} p${page}) params=${JSON.stringify(params)} error: ${e.response?.status} ${e.message}`);
+    // Run ALL strategies in parallel and merge results
+    const results = await Promise.allSettled(
+      strategies.map(async (params) => {
+        try {
+          const { data } = await this.http!.get('/emendas', { params });
+          return Array.isArray(data) ? data as TransparenciaEmenda[] : [];
+        } catch (e: any) {
+          this.logger.warn(`listEmendas(${ano} p${page}) params=${JSON.stringify(params)} error: ${e.response?.status} ${e.message}`);
+          return [];
+        }
+      }),
+    );
+
+    // Deduplicate by codigoEmenda
+    const seen = new Set<string>();
+    const merged: TransparenciaEmenda[] = [];
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue;
+      for (const item of r.value) {
+        const key = item.codigoEmenda ?? JSON.stringify(item);
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(item);
+        }
       }
     }
-    return [];
+
+    if (merged.length > 0) {
+      this.logger.log(`listEmendas(${ano} p${page}) → ${merged.length} emendas (deduped from ${results.reduce((a, r) => a + (r.status === 'fulfilled' ? r.value.length : 0), 0)} raw)`);
+    }
+    return merged;
   }
 
   async *iterEmendasAno(ano: number): AsyncGenerator<TransparenciaEmenda> {
