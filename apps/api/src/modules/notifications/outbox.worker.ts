@@ -52,6 +52,8 @@ export class OutboxWorker {
         this.logger.log(`Dispatched ${rows.length} outbox events`);
       }
     } catch (e: any) {
+      // Silently ignore if table doesn't exist yet (pre-migration 013)
+      if (e.message?.includes('outbox_events') && e.code === '42P01') return;
       this.logger.error(`Outbox worker error: ${e.message}`);
     } finally {
       this.isProcessing = false;
