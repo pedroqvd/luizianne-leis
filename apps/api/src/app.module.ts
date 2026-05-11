@@ -20,6 +20,8 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
 import { EditaisModule } from './modules/editais/editais.module';
 import { EmendasOrcModule } from './modules/emendas-orc/emendas-orc.module';
 import { DemandasModule } from './modules/demandas/demands.module';
+import { CeapModule } from './modules/ceap/ceap.module';
+import { DiscursosModule } from './modules/discursos/discursos.module';
 
 // FIX #2: Guard JWT global
 import { JwtAuthGuard } from './infra/auth';
@@ -51,6 +53,8 @@ import { JwtAuthGuard } from './infra/auth';
     EmendasOrcModule,
     AdminModule,
     DemandasModule,
+    CeapModule,
+    DiscursosModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
   Activity, Users, LogOut, ChevronRight,
-  Vote, Building2, FileSearch, Search, MapPin, ClipboardList,
+  Vote, Building2, FileSearch, Search, MapPin, ClipboardList, Mic, Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -20,6 +20,8 @@ const navItems = [
   { href: '/editais',     label: 'Editais',      icon: FileSearch,      slug: 'editais' },
   { href: '/analytics',   label: 'Analytics',    icon: BarChart3,       slug: 'analytics' },
   { href: '/atividade',   label: 'Atividade',    icon: Activity,        slug: 'atividade' },
+  { href: '/despesas',    label: 'CEAP',         icon: Receipt,         slug: 'despesas' },
+  { href: '/discursos',   label: 'Discursos',    icon: Mic,             slug: 'discursos' },
   { href: '/presenca',    label: 'Presença',     icon: MapPin,          slug: 'presenca' },
   { href: '/demandas',    label: 'Demandas',     icon: ClipboardList,   slug: 'demandas' },
 ];

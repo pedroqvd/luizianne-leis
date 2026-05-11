@@ -137,7 +137,7 @@ export class TransparenciaApiClient {
     const strategies: Record<string, any>[] = [
       ...(codigoAutor ? [{ ano, pagina: page, quantidade: size, codigoAutor }] : []),
       { ano, pagina: page, quantidade: size, nomeAutor },
-      { ano, pagina: page, quantidade: size, nomeAutor: 'LUIZIANNE LINS LOPES' },
+      { ano, pagina: page, quantidade: size, nomeAutor: 'LUIZIANNE DE OLIVEIRA LINS' },
       { ano, pagina: page, quantidade: size, nomeAutor: 'LUIZIANNE' },
     ];
 

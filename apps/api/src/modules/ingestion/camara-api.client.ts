@@ -97,6 +97,42 @@ export interface CamaraDeputyOrgao {
   dataFim?: string;
 }
 
+export interface CamaraDespesa {
+  ano: number;
+  mes: number;
+  tipoDespesa?: string;
+  codDocumento?: number;
+  tipoDocumento?: string;
+  dataDocumento?: string;
+  numDocumento?: string;
+  valorBruto?: number;
+  valorGlosa?: number;
+  valorLíquido?: number;
+  numRessarcimento?: string;
+  codLote?: number;
+  fornecedor?: string;
+  nomeFornecedor?: string;
+  cnpjCpfFornecedor?: string;
+  urlDocumento?: string;
+}
+
+export interface CamaraDiscurso {
+  dataHoraInicio?: string;
+  dataHoraFim?: string;
+  faseEvento?: {
+    titulo?: string;
+    dataHoraInicio?: string;
+    dataHoraFim?: string;
+  };
+  tipoDiscurso?: string;
+  urlTexto?: string;
+  urlAudio?: string;
+  urlVideo?: string;
+  keywords?: string;
+  sumario?: string;
+  transcricao?: string;
+}
+
 // FIX #7 (ALTO): Lista de domínios permitidos para baseURL — impede SSRF
 const ALLOWED_BASE_DOMAINS = [
   'dadosabertos.camara.leg.br',
@@ -352,6 +388,57 @@ export class CamaraApiClient {
     const items = data?.dados ?? [];
     const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= itens;
     return { items, hasNext };
+  }
+
+  /** CEAP — cotas parlamentares do deputado, paginadas por ano/mês. */
+  async *iterDeputyExpenses(
+    deputyId: number,
+    anoInicio = 2015,
+  ): AsyncGenerator<CamaraDespesa> {
+    const anoFim = new Date().getFullYear();
+    for (let ano = anoFim; ano >= anoInicio; ano--) {
+      let page = 1;
+      while (page <= 100) {
+        const { data } = await this.http.get<CamaraEnvelope<CamaraDespesa[]>>(
+          `/deputados/${deputyId}/despesas`,
+          { params: { ano, pagina: page, itens: 100 } },
+        );
+        const items = data?.dados ?? [];
+        for (const item of items) yield item;
+        const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= 100;
+        if (!hasNext) break;
+        page++;
+      }
+    }
+  }
+
+  /** Discursos do deputado no Plenário, paginados do mais recente ao mais antigo. */
+  async *iterDeputySpeeches(
+    deputyId: number,
+    dataInicio?: string,
+    dataFim?: string,
+  ): AsyncGenerator<CamaraDiscurso> {
+    let page = 1;
+    while (page <= 500) {
+      const { data } = await this.http.get<CamaraEnvelope<CamaraDiscurso[]>>(
+        `/deputados/${deputyId}/discursos`,
+        {
+          params: {
+            dataInicio: dataInicio ?? process.env.INGEST_DATA_INICIO ?? '2015-02-01',
+            dataFim: dataFim ?? new Date().toISOString().slice(0, 10),
+            ordenarPor: 'dataHoraInicio',
+            ordem: 'DESC',
+            pagina: page,
+            itens: 100,
+          },
+        },
+      );
+      const items = data?.dados ?? [];
+      for (const item of items) yield item;
+      const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= 100;
+      if (!hasNext) break;
+      page++;
+    }
   }
 
   async getDeputyCommissions(deputyId: number): Promise<CamaraDeputyOrgao[]> {
