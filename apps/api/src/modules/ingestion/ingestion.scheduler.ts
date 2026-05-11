@@ -26,7 +26,8 @@ export class IngestionScheduler {
   async absenceTick() {
     this.logger.log('cron tick — checking absences in nominal votes');
     try {
-      const result = await this.absence.checkRecentAbsences(1);
+      // 3 dias de janela: cobre fins de semana e reinicializações do servidor
+      const result = await this.absence.checkRecentAbsences(3);
       this.logger.log(`absence check: ${result.checked} votações, ${result.absences} ausências`);
     } catch (e: any) {
       this.logger.error(`absence check failed: ${e.message}`);
