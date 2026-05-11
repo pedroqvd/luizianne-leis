@@ -34,7 +34,7 @@ export class EditaisIngestion {
   }
 
   async ingest(): Promise<{ upserted: number }> {
-    this.logger.log('starting editais ingestion from PNCP (open proposals)');
+    this.logger.log('starting editais ingestion from PNCP');
     let upserted = 0;
 
     for await (const item of this.pncp.iterFederalOpen()) {
@@ -49,30 +49,6 @@ export class EditaisIngestion {
 
     await this.cache.invalidate('editais:*');
     this.logger.log(`editais ingestion done: ${upserted} upserted`);
-    return { upserted };
-  }
-
-  /**
-   * Backfill histórico via endpoint /publicacao.
-   * O PNCP tem dados a partir de ~jan/2021.
-   * Parâmetros no formato YYYYMMDD.
-   */
-  async ingestHistorical(dataInicial: string, dataFinal: string): Promise<{ upserted: number }> {
-    this.logger.log(`starting editais historical backfill: ${dataInicial} → ${dataFinal}`);
-    let upserted = 0;
-
-    for await (const item of this.pncp.iterFederalByPublication(dataInicial, dataFinal)) {
-      try {
-        const row = pncpToInternal(item);
-        await this.repo.upsert(row);
-        upserted++;
-      } catch (e: any) {
-        this.logger.warn(`failed to upsert ${item.numeroControlePNCP}: ${e.message}`);
-      }
-    }
-
-    await this.cache.invalidate('editais:*');
-    this.logger.log(`editais historical backfill done: ${upserted} upserted`);
     return { upserted };
   }
 }

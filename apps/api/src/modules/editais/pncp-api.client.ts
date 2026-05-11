@@ -153,15 +153,11 @@ export class PncpApiClient {
     }
   }
 
-  /**
-   * Itera por todas as modalidades para obter editais abertos (próximos 60 dias).
-   * Sem limite de páginas — itera até esgotar os resultados.
-   */
-  async *iterFederalOpen(): AsyncGenerator<PncpItem> {
+  async *iterFederalOpen(maxPagesPerModality = 5): AsyncGenerator<PncpItem> {
     const dataFinal = formatPncpDate(addDays(new Date(), 60));
     for (const m of MODALIDADES) {
       let page = 1;
-      while (true) {
+      while (page <= maxPagesPerModality) {
         const res = await this.listProposalsByModality(dataFinal, m, page, 50);
         if (!res.data?.length) break;
         for (const item of res.data) {
@@ -169,40 +165,6 @@ export class PncpApiClient {
         }
         if (res.paginasRestantes <= 0 || page >= res.totalPaginas) break;
         page++;
-      }
-    }
-  }
-
-  /**
-   * Itera editais publicados num intervalo de datas (endpoint /publicacao).
-   * Permite buscar histórico desde o lançamento do PNCP (~2021).
-   * Filtra por esfera Federal.
-   */
-  async *iterFederalByPublication(dataInicial: string, dataFinal: string): AsyncGenerator<PncpItem> {
-    for (const m of MODALIDADES) {
-      let page = 1;
-      while (true) {
-        try {
-          const { data: res } = await this.http.get('/v1/contratacoes/publicacao', {
-            params: {
-              dataInicial,
-              dataFinal,
-              codigoModalidadeContratacao: m,
-              pagina: page,
-              tamanhoPagina: 50,
-            },
-          });
-          const items: PncpItem[] = res?.data ?? [];
-          if (!items.length) break;
-          for (const item of items) {
-            if (item.orgaoEntidade?.esferaId === 'F') yield item;
-          }
-          if ((res?.paginasRestantes ?? 0) <= 0 || page >= (res?.totalPaginas ?? 1)) break;
-          page++;
-        } catch (e: any) {
-          if (e.response?.status === 422 || e.response?.status === 204) break;
-          throw e;
-        }
       }
     }
   }

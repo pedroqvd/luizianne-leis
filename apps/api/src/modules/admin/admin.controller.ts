@@ -76,36 +76,6 @@ export class AdminController {
     };
   }
 
-  /**
-   * Backfill histórico de editais via endpoint /publicacao do PNCP.
-   * O PNCP tem dados a partir de ~jan/2021 — não há dados anteriores nesta API.
-   *
-   * Query params obrigatórios:
-   *   from=YYYYMMDD  ex: 20210101
-   *   to=YYYYMMDD    ex: 20241231
-   */
-  @Post('ingest-editais-historical')
-  @HttpCode(202)
-  @ApiQuery({ name: 'from', required: true,  type: String, example: '20210101', description: 'Data início YYYYMMDD' })
-  @ApiQuery({ name: 'to',   required: false, type: String, example: '20241231', description: 'Data fim YYYYMMDD (padrão: hoje)' })
-  async triggerEditaisHistorical(
-    @Headers('x-admin-token') token?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    this.assertAuth(token);
-    if (!from) return { ok: false, message: 'Parâmetro from=YYYYMMDD é obrigatório' };
-    const dataFinal = to ?? formatDate(new Date());
-    this.editaisIngestion.ingestHistorical(from, dataFinal).catch(() => undefined);
-    return {
-      ok: true,
-      message: 'Historical editais backfill started in background. Check server logs.',
-      from,
-      to: dataFinal,
-      note: 'PNCP tem dados a partir de ~jan/2021. Não há dados de editais anteriores nesta API.',
-    };
-  }
-
   @Post('check-laws')
   async triggerLawsAlert() {
     const result = await this.laws.checkApprovedLaws();

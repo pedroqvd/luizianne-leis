@@ -18,7 +18,7 @@ function buildSslConfig(connectionString?: string) {
   if (!needsSsl) return false;
 
   return {
-    rejectUnauthorized: process.env.PG_SSL_REJECT_UNAUTHORIZED === 'true',
+    rejectUnauthorized: process.env.PG_SSL_REJECT_UNAUTHORIZED !== 'false',
   };
 }
 

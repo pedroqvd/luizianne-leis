@@ -97,7 +97,7 @@ export default async function VotesPage({
           <div className="stat-card text-center py-4">
             <MinusCircle className="w-5 h-5 text-amber-400 mx-auto mb-1" />
             <p className="text-2xl font-bold text-amber-600">{abst + obst}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Abstenções</p>
+            <p className="text-xs text-slate-400 mt-0.5">Abstenções / Obstruções</p>
             <p className="text-[10px] text-slate-300 mt-0.5">{pct(abst + obst, totalVotados)}% dos votos</p>
           </div>
           <div className={`stat-card text-center py-4 ${ausente > 0 ? 'border-red-200 bg-red-50' : ''}`}>

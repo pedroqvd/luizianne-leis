@@ -62,8 +62,8 @@ export class EditaisRepository {
       conditions.push(`situacao = $${i++}`); params.push(filter.situacao);
     }
     if (filter.ministerio) {
-      conditions.push(`(ministerio ILIKE $${i++} OR orgao ILIKE $${i - 1})`);
-      params.push(`%${filter.ministerio}%`);
+      conditions.push(`(ministerio ILIKE $${i++} OR orgao ILIKE $${i++})`);
+      params.push(`%${filter.ministerio}%`, `%${filter.ministerio}%`);
     }
     if (filter.modalidade) {
       conditions.push(`modalidade ILIKE $${i++}`); params.push(`%${filter.modalidade}%`);
@@ -72,8 +72,8 @@ export class EditaisRepository {
       conditions.push(`uf = $${i++}`); params.push(filter.uf.toUpperCase());
     }
     if (filter.search) {
-      conditions.push(`(titulo ILIKE $${i++} OR objeto ILIKE $${i - 1} OR orgao ILIKE $${i - 1})`);
-      params.push(`%${filter.search}%`);
+      conditions.push(`(titulo ILIKE $${i++} OR objeto ILIKE $${i++} OR orgao ILIKE $${i++})`);
+      params.push(`%${filter.search}%`, `%${filter.search}%`, `%${filter.search}%`);
     }
     if (filter.encerrandoEm) {
       params.push(Number(filter.encerrandoEm));
