@@ -19,18 +19,17 @@ export class OutboxWorker {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
+    const client = await this.pool.connect();
     try {
-      // Claim events: SELECT FOR UPDATE SKIP LOCKED ensures multi-node safety.
-      // We do NOT set processed_at here — we mark each event processed only
-      // AFTER successful dispatch (at-least-once semantics). A crash before
-      // marking will cause re-dispatch on next tick (acceptable duplicate) rather
-      // than permanent event loss (at-most-once).
-      const { rows } = await this.pool.query(
+      // Wrap in a transaction so FOR UPDATE SKIP LOCKED holds the row locks
+      // until COMMIT, preventing concurrent workers from claiming the same events.
+      await client.query('BEGIN');
+      const { rows } = await client.query(
         `SELECT * FROM outbox_events
          WHERE processed_at IS NULL
          ORDER BY id ASC
          LIMIT 50
-         FOR UPDATE SKIP LOCKED`
+         FOR UPDATE SKIP LOCKED`,
       );
 
       let dispatched = 0;
@@ -42,8 +41,8 @@ export class OutboxWorker {
             aggregateId: row.aggregate_id,
             payload: row.payload,
           } as any);
-          // Mark processed only after successful dispatch
-          await this.pool.query(
+          // Mark processed only after successful dispatch (at-least-once semantics)
+          await client.query(
             `UPDATE outbox_events SET processed_at = NOW() WHERE id = $1`,
             [row.id],
           );
@@ -53,14 +52,17 @@ export class OutboxWorker {
           // processed_at stays NULL → retried on next tick
         }
       }
+      await client.query('COMMIT');
       if (dispatched > 0) {
         this.logger.log(`Dispatched ${dispatched}/${rows.length} outbox events`);
       }
     } catch (e: any) {
+      await client.query('ROLLBACK').catch(() => undefined);
       // Silently ignore if table doesn't exist yet (pre-migration 013)
       if (e.message?.includes('outbox_events') && e.code === '42P01') return;
       this.logger.error(`Outbox worker error: ${e.message}`);
     } finally {
+      client.release();
       this.isProcessing = false;
     }
   }
