@@ -18,7 +18,7 @@ export class IngestionScheduler {
    * Sincronização completa: proposições, relatorias, tramitações, votos.
    * Default: 2× ao dia (6h e 18h) em vez de a cada 30 min.
    * Cada full sync pode fazer centenas de requisições à API da Câmara.
-   * Rode mais frequente via INGESTION_CRON se necessário (ex.: "*/30 * * * *").
+   * Rode mais frequente via INGESTION_CRON se necessário (ex.: "0 *\/2 * * *" = a cada 2h).
    */
   @Cron(process.env.INGESTION_CRON ?? '0 6,18 * * *')
   async tick() {
