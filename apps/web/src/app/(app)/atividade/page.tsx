@@ -24,7 +24,9 @@ export default async function AtividadePage() {
   let items: NotificationRow[] = [];
   try {
     items = await api<NotificationRow[]>('/notifications?limit=100');
-  } catch {}
+  } catch (e) {
+    console.error('[atividade] failed to fetch notifications:', e);
+  }
 
   return (
     <div className="space-y-6 animate-fade-in-up">

@@ -58,7 +58,9 @@ export default async function EditalDetailPage({ params }: { params: { id: strin
   let edital: EditalDetail | null = null;
   try {
     edital = await api<EditalDetail>(`/editais/${params.id}`);
-  } catch {}
+  } catch (e) {
+    console.error(`[edital-detail] failed to fetch edital ${params.id}:`, e);
+  }
 
   if (!edital) {
     return (

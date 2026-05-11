@@ -27,7 +27,9 @@ export default async function ComissoesPage() {
   let commissions: Commission[] = [];
   try {
     commissions = await api<Commission[]>('/commissions/target');
-  } catch {}
+  } catch (e) {
+    console.error('[comissoes] failed to fetch commissions:', e);
+  }
 
   const ativas = commissions.filter(isActive);
   const anteriores = commissions.filter((c) => !isActive(c));

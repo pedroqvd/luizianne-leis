@@ -46,7 +46,7 @@ function fmt(d?: string | null) {
 
 export default async function LegislativoDetailPage({ params }: { params: { id: string } }) {
   let data: Detail | null = null;
-  try { data = await api<Detail>(`/propositions/${params.id}`); } catch {}
+  try { data = await api<Detail>(`/propositions/${params.id}`); } catch (e) { console.error(`[legislativo-detail] failed to fetch proposition ${params.id}:`, e); }
 
   if (!data) {
     return (
