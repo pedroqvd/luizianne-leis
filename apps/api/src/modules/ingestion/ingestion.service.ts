@@ -106,7 +106,9 @@ export class IngestionService {
       this.logger.warn(`Failed to refresh materialized view (maybe needs first non-concurrent refresh?): ${e.message}`);
       try {
         await this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown');
-      } catch {}
+      } catch (e: any) {
+        this.logger.warn(`Materialized view full refresh also failed: ${e.message}`);
+      }
     }
 
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
@@ -413,7 +415,10 @@ export class IngestionService {
     try {
       const votings = await this.api.getPropositionVotes(externalPropId);
       for (const v of votings) {
-        const detalhes = await this.api.getVoteDetails(v.id).catch(() => []);
+        const detalhes = await this.api.getVoteDetails(v.id).catch((e: any) => {
+          this.logger.warn(`getVoteDetails failed for voting ${v.id}: ${e.message}`);
+          return [];
+        });
         for (const det of detalhes) {
           const externalId = det.deputado_?.id;
           if (!externalId) continue;

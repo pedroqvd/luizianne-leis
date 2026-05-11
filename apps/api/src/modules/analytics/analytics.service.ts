@@ -97,17 +97,18 @@ export class AnalyticsService {
     return this.cache.wrap('analytics:heatmap', 300, async () => {
       const d = await this.deputy.getTarget();
       const { rows } = await this.pool.query(
-        // FIX #15: LIMIT 731 (2 years max) para segurança
+        // Full legislative history from 2003 (first mandate). No time window limit —
+        // the deputy has been active since 2003 and the 2-year window hid 20+ years of data.
+        // LIMIT 9999 guards against pathological data while covering ~23 years of activity.
         `SELECT DATE_TRUNC('day', p.presented_at)::date AS day,
                 COUNT(DISTINCT p.id)::int AS total
            FROM propositions p
            JOIN proposition_authors pa ON pa.proposition_id = p.id
            WHERE pa.deputy_id = $1
              AND p.presented_at IS NOT NULL
-             AND p.presented_at >= NOW() - INTERVAL '2 years'
            GROUP BY day
            ORDER BY day ASC
-           LIMIT 731`,
+           LIMIT 9999`,
         [d.id],
       );
       return rows as { day: string; total: number }[];

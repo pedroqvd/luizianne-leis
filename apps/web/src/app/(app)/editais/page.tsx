@@ -267,6 +267,7 @@ export default async function EditaisPage({
               const s = SITUACAO[edital.situacao] ?? SITUACAO.encerrado;
               const Icon = s.icon;
               const valor = fmtBRL(edital.valor_estimado);
+              const encerraDias = daysUntil(edital.data_proposta_fim);
 
               return (
                 <div key={edital.id} className="stat-card hover:shadow-md transition-shadow">
@@ -331,7 +332,7 @@ export default async function EditaisPage({
                         {edital.data_proposta_fim && (
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
-                            Encerra: <strong className={`${daysUntil(edital.data_proposta_fim) !== null && daysUntil(edital.data_proposta_fim)! <= 7 ? 'text-red-600' : 'text-slate-600'}`}>
+                            Encerra: <strong className={encerraDias !== null && encerraDias <= 7 ? 'text-red-600' : 'text-slate-600'}>
                               {fmt(edital.data_proposta_fim)}
                             </strong>
                           </span>

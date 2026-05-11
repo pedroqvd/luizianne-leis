@@ -30,7 +30,9 @@ export default async function DashboardPage() {
       api<Summary>('/analytics/summary'),
       api<{ day: string; total: number }[]>('/analytics/heatmap').catch(() => null),
     ]);
-  } catch {}
+  } catch (e) {
+    console.error('[dashboard] failed to fetch summary/heatmap:', e);
+  }
 
   const prod = data?.productivity;
 

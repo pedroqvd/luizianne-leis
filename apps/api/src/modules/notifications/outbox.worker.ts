@@ -19,23 +19,20 @@ export class OutboxWorker {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
+    const client = await this.pool.connect();
     try {
-      // Use CTE with FOR UPDATE SKIP LOCKED to make it safe for multi-node!
-      const { rows } = await this.pool.query(
-        `WITH claim AS (
-           SELECT id FROM outbox_events
-           WHERE processed_at IS NULL
-           ORDER BY id ASC
-           LIMIT 50
-           FOR UPDATE SKIP LOCKED
-         )
-         UPDATE outbox_events e
-         SET processed_at = NOW()
-         FROM claim c
-         WHERE e.id = c.id
-         RETURNING e.*`
+      // Wrap in a transaction so FOR UPDATE SKIP LOCKED holds the row locks
+      // until COMMIT, preventing concurrent workers from claiming the same events.
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `SELECT * FROM outbox_events
+         WHERE processed_at IS NULL
+         ORDER BY id ASC
+         LIMIT 50
+         FOR UPDATE SKIP LOCKED`,
       );
 
+      let dispatched = 0;
       for (const row of rows) {
         try {
           this.events.emit({
@@ -44,18 +41,28 @@ export class OutboxWorker {
             aggregateId: row.aggregate_id,
             payload: row.payload,
           } as any);
+          // Mark processed only after successful dispatch (at-least-once semantics)
+          await client.query(
+            `UPDATE outbox_events SET processed_at = NOW() WHERE id = $1`,
+            [row.id],
+          );
+          dispatched++;
         } catch (e: any) {
-          this.logger.error(`Failed to dispatch event ${row.id}: ${e.message}`);
+          this.logger.error(`Failed to dispatch event ${row.id} (type=${row.type}): ${e.message} — will retry`);
+          // processed_at stays NULL → retried on next tick
         }
       }
-      if (rows.length > 0) {
-        this.logger.log(`Dispatched ${rows.length} outbox events`);
+      await client.query('COMMIT');
+      if (dispatched > 0) {
+        this.logger.log(`Dispatched ${dispatched}/${rows.length} outbox events`);
       }
     } catch (e: any) {
+      await client.query('ROLLBACK').catch(() => undefined);
       // Silently ignore if table doesn't exist yet (pre-migration 013)
       if (e.message?.includes('outbox_events') && e.code === '42P01') return;
       this.logger.error(`Outbox worker error: ${e.message}`);
     } finally {
+      client.release();
       this.isProcessing = false;
     }
   }

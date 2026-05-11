@@ -1,4 +1,8 @@
-import { Controller, HttpCode, Post, Query, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Headers, HttpCode, Post, Query, Logger, UseGuards } from '@nestjs/common';
+
+function formatDate(d: Date): string {
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
