@@ -1,8 +1,10 @@
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { Vote, ExternalLink, CheckCircle, XCircle, MinusCircle, HelpCircle, UserX, AlertTriangle } from 'lucide-react';
+import { Vote, CheckCircle, XCircle, MinusCircle, HelpCircle, UserX, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+
+const PAGE_SIZE = 100;
 
 interface VoteRow {
   id: number;
@@ -50,15 +52,25 @@ function pct(num: string | number, total: number) {
   return Math.round((n / total) * 100);
 }
 
+function buildHref(filter?: string, page?: number) {
+  const params = new URLSearchParams();
+  if (filter) params.set('filter', filter);
+  if (page && page > 1) params.set('page', String(page));
+  const qs = params.toString();
+  return `/votes${qs ? `?${qs}` : ''}`;
+}
+
 export default async function VotesPage({
   searchParams,
 }: {
-  searchParams: { filter?: string };
+  searchParams: { filter?: string; page?: string };
 }) {
   const absencesOnly = searchParams.filter === 'ausencias';
+  const page = Math.max(1, Number(searchParams.page ?? 1));
+  const offset = (page - 1) * PAGE_SIZE;
 
   const [votes, stats] = await Promise.all([
-    api<VoteRow[]>(`/votes?limit=300${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]),
+    api<VoteRow[]>(`/votes?limit=${PAGE_SIZE}&offset=${offset}${absencesOnly ? '&absencesOnly=true' : ''}`).catch(() => [] as VoteRow[]),
     api<VoteStats>('/votes/stats/target').catch(() => null),
   ]);
 
@@ -69,6 +81,11 @@ export default async function VotesPage({
   const ausente = Number(stats?.ausente ?? 0);
   const totalVotados = Number(stats?.total_votados ?? 0);
   const totalRegistros = totalVotados + ausente;
+
+  const totalForFilter = absencesOnly ? ausente : totalRegistros;
+  const totalPages = Math.max(1, Math.ceil(totalForFilter / PAGE_SIZE));
+  const hasPrev = page > 1;
+  const hasNext = page < totalPages;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -155,6 +172,11 @@ export default async function VotesPage({
           <UserX className="w-3.5 h-3.5" />
           Só ausências {ausente > 0 && <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${absencesOnly ? 'bg-red-800 text-white' : 'bg-red-100 text-red-700'}`}>{ausente}</span>}
         </Link>
+        {totalForFilter > 0 && (
+          <span className="ml-auto text-xs text-slate-400">
+            {totalForFilter} registro{totalForFilter !== 1 ? 's' : ''} · página {page} de {totalPages}
+          </span>
+        )}
       </div>
 
       {/* Lista */}
@@ -227,6 +249,37 @@ export default async function VotesPage({
           </div>
         )}
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <Link
+            href={hasPrev ? buildHref(absencesOnly ? 'ausencias' : undefined, page - 1) : '#'}
+            aria-disabled={!hasPrev}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              hasPrev
+                ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                : 'opacity-40 pointer-events-none bg-white text-slate-400 border-slate-100'
+            }`}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+          </Link>
+          <span className="text-xs text-slate-400">
+            {offset + 1}–{Math.min(offset + PAGE_SIZE, totalForFilter)} de {totalForFilter}
+          </span>
+          <Link
+            href={hasNext ? buildHref(absencesOnly ? 'ausencias' : undefined, page + 1) : '#'}
+            aria-disabled={!hasNext}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              hasNext
+                ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                : 'opacity-40 pointer-events-none bg-white text-slate-400 border-slate-100'
+            }`}
+          >
+            Próxima <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

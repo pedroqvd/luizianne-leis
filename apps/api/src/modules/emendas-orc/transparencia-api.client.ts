@@ -117,12 +117,19 @@ export class TransparenciaApiClient {
 
   /**
    * FIX #7 (MÉDIO): Executa TODAS as estratégias de busca em paralelo
-   * e deduplica resultados por codigoEmenda. A versão anterior parava
-   * na primeira strategy que retornasse dados, potencialmente perdendo
-   * emendas registradas com variação de nome.
+   * e deduplica resultados por codigoEmenda.
+   *
+   * Retorna { items, anyStrategyHadFullPage } onde anyStrategyHadFullPage=true
+   * significa que pelo menos uma estratégia retornou exatamente `size` itens,
+   * indicando que pode haver mais páginas. Isso resolve o problema de usar
+   * itens.length pós-dedup como critério de parada (inválido após merge).
    */
-  async listEmendas(ano: number, page = 1, size = 100): Promise<TransparenciaEmenda[]> {
-    if (!this.http) return [];
+  async listEmendas(
+    ano: number,
+    page = 1,
+    size = 100,
+  ): Promise<{ items: TransparenciaEmenda[]; anyStrategyHadFullPage: boolean }> {
+    if (!this.http) return { items: [], anyStrategyHadFullPage: false };
 
     const nomeAutor = process.env.DEPUTY_TRANSPARENCIA_NAME ?? 'LUIZIANNE LINS';
     const codigoAutor = process.env.DEPUTY_TRANSPARENCIA_CODE ?? '';
@@ -150,8 +157,11 @@ export class TransparenciaApiClient {
     // Deduplicate by codigoEmenda
     const seen = new Set<string>();
     const merged: TransparenciaEmenda[] = [];
+    let anyStrategyHadFullPage = false;
     for (const r of results) {
       if (r.status !== 'fulfilled') continue;
+      // If any strategy returned a full page, assume more pages exist
+      if (r.value.length >= size) anyStrategyHadFullPage = true;
       for (const item of r.value) {
         const key = item.codigoEmenda ?? JSON.stringify(item);
         if (!seen.has(key)) {
@@ -161,19 +171,21 @@ export class TransparenciaApiClient {
       }
     }
 
+    const rawTotal = results.reduce((a, r) => a + (r.status === 'fulfilled' ? r.value.length : 0), 0);
     if (merged.length > 0) {
-      this.logger.log(`listEmendas(${ano} p${page}) → ${merged.length} emendas (deduped from ${results.reduce((a, r) => a + (r.status === 'fulfilled' ? r.value.length : 0), 0)} raw)`);
+      this.logger.log(`listEmendas(${ano} p${page}) → ${merged.length} emendas (deduped from ${rawTotal} raw, hasMore=${anyStrategyHadFullPage})`);
     }
-    return merged;
+    return { items: merged, anyStrategyHadFullPage };
   }
 
   async *iterEmendasAno(ano: number): AsyncGenerator<TransparenciaEmenda> {
     let page = 1;
-    while (page <= 200) { // FIX: circuit breaker guard
-      const items = await this.listEmendas(ano, page, 100);
+    while (page <= 200) { // circuit breaker guard
+      const { items, anyStrategyHadFullPage } = await this.listEmendas(ano, page, 100);
       if (!items.length) break;
       yield* items;
-      if (items.length < 100) break;
+      // Stop only when ALL strategies returned partial pages (< 100 items each)
+      if (!anyStrategyHadFullPage) break;
       page++;
     }
   }

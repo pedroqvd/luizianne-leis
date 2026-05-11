@@ -20,22 +20,20 @@ export class OutboxWorker {
     this.isProcessing = true;
 
     try {
-      // Use CTE with FOR UPDATE SKIP LOCKED to make it safe for multi-node!
+      // Claim events: SELECT FOR UPDATE SKIP LOCKED ensures multi-node safety.
+      // We do NOT set processed_at here — we mark each event processed only
+      // AFTER successful dispatch (at-least-once semantics). A crash before
+      // marking will cause re-dispatch on next tick (acceptable duplicate) rather
+      // than permanent event loss (at-most-once).
       const { rows } = await this.pool.query(
-        `WITH claim AS (
-           SELECT id FROM outbox_events
-           WHERE processed_at IS NULL
-           ORDER BY id ASC
-           LIMIT 50
-           FOR UPDATE SKIP LOCKED
-         )
-         UPDATE outbox_events e
-         SET processed_at = NOW()
-         FROM claim c
-         WHERE e.id = c.id
-         RETURNING e.*`
+        `SELECT * FROM outbox_events
+         WHERE processed_at IS NULL
+         ORDER BY id ASC
+         LIMIT 50
+         FOR UPDATE SKIP LOCKED`
       );
 
+      let dispatched = 0;
       for (const row of rows) {
         try {
           this.events.emit({
@@ -44,12 +42,19 @@ export class OutboxWorker {
             aggregateId: row.aggregate_id,
             payload: row.payload,
           } as any);
+          // Mark processed only after successful dispatch
+          await this.pool.query(
+            `UPDATE outbox_events SET processed_at = NOW() WHERE id = $1`,
+            [row.id],
+          );
+          dispatched++;
         } catch (e: any) {
-          this.logger.error(`Failed to dispatch event ${row.id}: ${e.message}`);
+          this.logger.error(`Failed to dispatch event ${row.id} (type=${row.type}): ${e.message} — will retry`);
+          // processed_at stays NULL → retried on next tick
         }
       }
-      if (rows.length > 0) {
-        this.logger.log(`Dispatched ${rows.length} outbox events`);
+      if (dispatched > 0) {
+        this.logger.log(`Dispatched ${dispatched}/${rows.length} outbox events`);
       }
     } catch (e: any) {
       // Silently ignore if table doesn't exist yet (pre-migration 013)

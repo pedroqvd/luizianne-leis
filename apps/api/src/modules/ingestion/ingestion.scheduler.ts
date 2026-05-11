@@ -14,19 +14,29 @@ export class IngestionScheduler {
     private readonly laws: LawsAlertService,
   ) {}
 
-  /** Sincronização completa: proposições, relatorias, tramitações, votos */
-  @Cron(process.env.INGESTION_CRON ?? CronExpression.EVERY_30_MINUTES)
+  /**
+   * Sincronização completa: proposições, relatorias, tramitações, votos.
+   * Default: 2× ao dia (6h e 18h) em vez de a cada 30 min.
+   * Cada full sync pode fazer centenas de requisições à API da Câmara.
+   * Rode mais frequente via INGESTION_CRON se necessário (ex.: "*/30 * * * *").
+   */
+  @Cron(process.env.INGESTION_CRON ?? '0 6,18 * * *')
   async tick() {
     this.logger.log('cron tick — enqueue full sync');
     await this.queue.enqueueFullSync();
   }
 
-  /** Verificação de ausências em votações nominais — a cada 30 min (mesmo ritmo do sync) */
-  @Cron(process.env.ABSENCE_CRON ?? CronExpression.EVERY_30_MINUTES)
+  /**
+   * Verificação de ausências em votações nominais.
+   * Default: 1× ao dia (às 20h, após encerramento das sessões).
+   * Usa janela de 3 dias para cobrir sessões noturnas e feriados.
+   * Rode mais frequente via ABSENCE_CRON se necessário.
+   */
+  @Cron(process.env.ABSENCE_CRON ?? '0 20 * * *')
   async absenceTick() {
     this.logger.log('cron tick — checking absences in nominal votes');
     try {
-      const result = await this.absence.checkRecentAbsences(1);
+      const result = await this.absence.checkRecentAbsences(3);
       this.logger.log(`absence check: ${result.checked} votações, ${result.absences} ausências`);
     } catch (e: any) {
       this.logger.error(`absence check failed: ${e.message}`);

@@ -148,7 +148,7 @@ export class EmendasOrcRepository {
        WHERE descricao_funcao IS NOT NULL
        GROUP BY descricao_funcao
        ORDER BY pago DESC NULLS LAST
-       LIMIT 10
+       LIMIT 30
     `);
     return rows;
   }
