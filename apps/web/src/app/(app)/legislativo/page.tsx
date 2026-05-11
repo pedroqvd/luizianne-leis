@@ -9,7 +9,14 @@ const PAGE_SIZE = 30;
 interface PropositionRow {
   id: number; external_id: number | null; type: string; number: number | null; year: number | null;
   title: string | null; status: string | null; presented_at: string | null; url: string | null;
+  deputy_role: 'author' | 'coauthor' | 'rapporteur' | null;
 }
+
+const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
+  author:     { label: 'Autora',    cls: 'bg-green-50 text-green-700 border-green-100' },
+  coauthor:   { label: 'Coautora',  cls: 'bg-sky-50 text-sky-700 border-sky-100' },
+  rapporteur: { label: 'Relatora',  cls: 'bg-amber-50 text-amber-700 border-amber-100' },
+};
 
 interface PropositionListResponse {
   rows: PropositionRow[];
@@ -136,6 +143,11 @@ export default async function LegislativoPage({
                       <span className={`badge border text-[10px] font-semibold ${TYPE_COLORS[p.type] ?? 'bg-slate-50 text-slate-600 border-slate-100'}`}>
                         {p.type} {p.number}/{p.year}
                       </span>
+                      {p.deputy_role && ROLE_LABELS[p.deputy_role] && (
+                        <span className={`badge border text-[10px] font-medium ${ROLE_LABELS[p.deputy_role].cls}`}>
+                          {ROLE_LABELS[p.deputy_role].label}
+                        </span>
+                      )}
                       {p.status && (
                         <span className="badge bg-slate-50 text-slate-500 border border-slate-100 text-[10px]">{p.status}</span>
                       )}

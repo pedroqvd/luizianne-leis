@@ -92,9 +92,35 @@ export interface CamaraDeputyOrgao {
   idOrgao: number;
   siglaOrgao?: string;
   nomeOrgao?: string;
+  nomePublicacao?: string;
   titulo?: string;
+  codTitulo?: string;
   dataInicio?: string;
   dataFim?: string;
+}
+
+export interface CamaraFrente {
+  id: number;
+  uri?: string;
+  titulo?: string;
+  idLegislatura?: number;
+}
+
+export interface CamaraFrenteDetalhe extends CamaraFrente {
+  keywords?: string;
+  urlWebsite?: string;
+  urlDocumento?: string;
+  situacao?: string;
+  coordenador?: { id: number; uri?: string; nome?: string; siglaPartido?: string; siglaUf?: string };
+}
+
+export interface CamaraFrenteMembro {
+  id: number;
+  uri?: string;
+  nome?: string;
+  siglaPartido?: string;
+  siglaUf?: string;
+  titulo?: string;  // role: 'Titular' | 'Coordenador' | 'Presidente'
 }
 
 export interface CamaraDespesa {
@@ -463,6 +489,35 @@ export class CamaraApiClient {
       page++;
     }
     return allItems;
+  }
+
+  async getDeputyFronts(deputyId: number): Promise<CamaraFrente[]> {
+    const { data } = await this.http.get<CamaraEnvelope<CamaraFrente[]>>(
+      `/deputados/${deputyId}/frentes`,
+    );
+    return data?.dados ?? [];
+  }
+
+  async getFrenteDetail(frenteId: number): Promise<CamaraFrenteDetalhe | null> {
+    try {
+      const { data } = await this.http.get<CamaraEnvelope<CamaraFrenteDetalhe>>(
+        `/frentes/${frenteId}`,
+      );
+      return data?.dados ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getFrenteMembers(frenteId: number): Promise<CamaraFrenteMembro[]> {
+    try {
+      const { data } = await this.http.get<CamaraEnvelope<CamaraFrenteMembro[]>>(
+        `/frentes/${frenteId}/membros`,
+      );
+      return data?.dados ?? [];
+    } catch {
+      return [];
+    }
   }
 }
 

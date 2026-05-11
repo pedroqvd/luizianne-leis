@@ -72,8 +72,13 @@ export class PropositionRepository {
     const offsetIdx = i++;
     params.push(limit, offset);
 
+    const targetExtId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
     const dataSql = `
-      SELECT DISTINCT p.id, p.external_id, p.type, p.number, p.year, p.title, p.summary, p.status, p.keywords, p.url, p.presented_at, p.updated_at
+      SELECT DISTINCT p.id, p.external_id, p.type, p.number, p.year, p.title, p.summary, p.status, p.keywords, p.url, p.presented_at, p.updated_at,
+        (SELECT pa2.role FROM proposition_authors pa2
+          JOIN deputies d2 ON d2.id = pa2.deputy_id
+          WHERE pa2.proposition_id = p.id AND d2.external_id = ${targetExtId}
+          LIMIT 1) AS deputy_role
       FROM ${from}
       ${whereSql}
       ORDER BY p.presented_at DESC NULLS LAST, p.id DESC
