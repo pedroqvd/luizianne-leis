@@ -6,7 +6,7 @@ interface Props {
   data: { day: string; total: number }[];
 }
 
-const WEEKS = 52;
+const WEEKS = 576 // ~11 years of history (covers since 2015);
 const DAYS = 7;
 const LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -56,12 +56,15 @@ export function ProductivityHeatmap({ data }: Props) {
     return { grid, monthLabels, max };
   }, [data]);
 
-  const total = data.reduce((s, d) => s + d.total, 0);
+  const total = useMemo(
+    () => grid.flat().reduce((s, cell) => s + cell.total, 0),
+    [grid],
+  );
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400">{total} proposições nos últimos 12 meses</span>
+        <span className="text-xs text-slate-400">{total} proposições (histórico completo)</span>
         <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
           <span>Menos</span>
           {['bg-slate-100', 'bg-brand-200', 'bg-brand-400', 'bg-brand-600', 'bg-brand-700'].map((c) => (

@@ -126,7 +126,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-2 mb-5">
           <GitBranch className="w-4 h-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-700">Heatmap de produtividade</h2>
-          <span className="text-xs text-slate-400 ml-1">últimos 12 meses</span>
+          <span className="text-xs text-slate-400 ml-1">histórico completo</span>
         </div>
         {heatmap === null ? (
           <div className="py-12 text-center text-sm text-slate-400 flex flex-col items-center gap-2">
