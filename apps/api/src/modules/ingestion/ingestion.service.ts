@@ -59,13 +59,14 @@ export class IngestionService {
     // A Câmara API usa IDs distintos por mandato — sem isso apenas a legislatura
     // atual (TARGET_DEPUTY_EXTERNAL_ID) seria buscada.
     const deputyName = process.env.TARGET_DEPUTY_NAME ?? 'Luizianne';
+    const deputyUf   = process.env.TARGET_DEPUTY_UF ?? 'CE';
     const currentLegislatura = Number(process.env.TARGET_DEPUTY_LEGISLATURA ?? 57);
-    const startLegislatura = Number(process.env.INGEST_START_LEGISLATURA ?? 55); // 55ª = 2015-2019
+    const startLegislatura = Number(process.env.INGEST_START_LEGISLATURA ?? 55);
     const allDeputyIds = new Set<number>([externalId]);
 
     for (let leg = startLegislatura; leg < currentLegislatura; leg++) {
       try {
-        const ids = await this.api.findDeputyIdsByLegislatura(deputyName, leg);
+        const ids = await this.api.findDeputyIdsByLegislatura(deputyName, leg, deputyUf);
         ids.forEach((id) => allDeputyIds.add(id));
         this.logger.log(`legislatura ${leg}: found ids [${ids.join(', ')}]`);
       } catch (e: any) {
@@ -74,6 +75,15 @@ export class IngestionService {
     }
 
     this.logger.log(`syncing propositions for deputy ids: [${Array.from(allDeputyIds).join(', ')}]`);
+
+    // Map historical external IDs → current deputy DB id so syncAuthors can link
+    // historical authorship records to the same DB row instead of creating ghost rows.
+    const historicalIdMap = new Map<number, number>();
+    for (const histId of allDeputyIds) {
+      if (histId !== externalId) {
+        historicalIdMap.set(histId, deputy.id);
+      }
+    }
 
     let totalProps = 0;
     let totalEvents = 0;
@@ -88,7 +98,7 @@ export class IngestionService {
         const batches = chunk(items, this.concurrency);
         for (const batch of batches) {
           const results = await Promise.allSettled(
-            batch.map((p: any) => this.syncPropositionSafe(p.id, deputy.id)),
+            batch.map((p: any) => this.syncPropositionSafe(p.id, deputy.id, historicalIdMap)),
           );
           for (const r of results) {
             if (r.status === 'fulfilled') {
@@ -105,7 +115,7 @@ export class IngestionService {
       }
 
       // Relatora — também por legislatura
-      const relatorStats = await this.syncRelatorPropositions(deputy.id, depId);
+      const relatorStats = await this.syncRelatorPropositions(deputy.id, depId, historicalIdMap);
       totalProps += relatorStats.propositions;
       totalEvents += relatorStats.events;
     }
@@ -114,7 +124,7 @@ export class IngestionService {
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')
       .split(',').map((s) => s.trim()).filter(Boolean);
     for (const sigla of commissionSiglas) {
-      const commStats = await this.syncCommissionPropositions(deputy.id, sigla);
+      const commStats = await this.syncCommissionPropositions(deputy.id, sigla, historicalIdMap);
       totalProps += commStats.propositions;
       totalEvents += commStats.events;
     }
@@ -141,6 +151,7 @@ export class IngestionService {
   private async syncRelatorPropositions(
     deputyId: number,
     externalDeputyId: number,
+    historicalIdMap?: Map<number, number>,
   ): Promise<{ propositions: number; events: number }> {
     let totalProps = 0;
     let totalEvents = 0;
@@ -153,7 +164,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId, historicalIdMap)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {
@@ -176,6 +187,7 @@ export class IngestionService {
   private async syncCommissionPropositions(
     deputyId: number,
     siglaOrgao: string,
+    historicalIdMap?: Map<number, number>,
   ): Promise<{ propositions: number; events: number }> {
     let totalProps = 0;
     let totalEvents = 0;
@@ -190,7 +202,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId, historicalIdMap)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {
@@ -233,7 +245,11 @@ export class IngestionService {
    * FIX #6: Wrapper com mutex para evitar sincronização duplicada.
    * Se a proposição já está sendo sincronizada por outra Promise, pula.
    */
-  private async syncPropositionSafe(externalId: number, targetDeputyId: number) {
+  private async syncPropositionSafe(
+    externalId: number,
+    targetDeputyId: number,
+    historicalIdMap?: Map<number, number>,
+  ) {
     if (this.inProgress.has(externalId)) {
       this.logger.debug(`skipping proposition ${externalId} — already in progress`);
       return { eventsEmitted: 0 };
@@ -241,17 +257,17 @@ export class IngestionService {
 
     this.inProgress.add(externalId);
     try {
-      return await this.syncProposition(externalId, targetDeputyId);
+      return await this.syncProposition(externalId, targetDeputyId, historicalIdMap);
     } finally {
       this.inProgress.delete(externalId);
     }
   }
 
-  /**
-   * FIX #5 (ALTO): Sincronização envolta em transação para atomicidade.
-   * FIX #9 (ALTO): Eventos emitidos APÓS commit da transação.
-   */
-  private async syncProposition(externalId: number, targetDeputyId: number) {
+  private async syncProposition(
+    externalId: number,
+    targetDeputyId: number,
+    historicalIdMap?: Map<number, number>,
+  ) {
     let eventsEmitted = 0;
     const pendingEvents: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
 
@@ -294,7 +310,7 @@ export class IngestionService {
       eventsEmitted++;
     }
 
-    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId, client);
+    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId, client, historicalIdMap);
     eventsEmitted += authorEvents.count;
     pendingEvents.push(...authorEvents.events);
 
@@ -337,7 +353,13 @@ export class IngestionService {
     }
   }
 
-  private async syncAuthors(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
+  private async syncAuthors(
+    propositionId: number,
+    externalPropId: number,
+    targetDeputyId: number,
+    client: import('pg').PoolClient,
+    historicalIdMap?: Map<number, number>,
+  ) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
     try {
@@ -346,9 +368,13 @@ export class IngestionService {
         const externalDeputyId = extractDeputyIdFromUri(a.uri);
         if (!externalDeputyId) continue; // autor é comissão/órgão, ignora
 
-        let dep = await this.deputies.findByExternalId(externalDeputyId);
-        if (!dep) {
-          dep = await this.deputies.upsert({
+        // If this external ID is a historical mandate ID of the target deputy,
+        // link directly to the current deputy record instead of creating a ghost.
+        let dep: { id: number };
+        if (historicalIdMap?.has(externalDeputyId)) {
+          dep = { id: historicalIdMap.get(externalDeputyId)! };
+        } else {
+          dep = await this.deputies.findByExternalId(externalDeputyId) ?? await this.deputies.upsert({
             external_id: externalDeputyId,
             name: a.nome ?? 'Deputado(a)',
             party: a.siglaPartido ?? null,

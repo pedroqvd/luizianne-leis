@@ -209,7 +209,7 @@ export default async function EmendasPage({
                 </div>
                 <ul className="space-y-2">
                   {byFuncao.slice(0, 8).map((f) => {
-                    const pct = Math.round((Number(f.pago) / (Number(byFuncao[0]?.pago) || 1)) * 100);
+                    const pct = Math.min(100, Math.round((Number(f.pago) / (Number(byFuncao[0]?.pago) || 1)) * 100));
                     return (
                       <li key={f.funcao} className="space-y-1">
                         <div className="flex items-center gap-2 text-xs">

@@ -78,6 +78,7 @@ export function DemandasClient({ demands: initial, members }: Props) {
   }
 
   function cycleStatus(d: Demand) {
+    if (d.status === 'arquivado') return; // arquivado is terminal — no cycling
     const order = ['novo', 'em_andamento', 'aguardando', 'resolvido'];
     const idx = order.indexOf(d.status);
     const next = order[(idx + 1) % order.length];
@@ -168,8 +169,12 @@ export function DemandasClient({ demands: initial, members }: Props) {
 
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       {/* Status (clicável para avançar) */}
-                      <button onClick={() => cycleStatus(d)} disabled={pending} title="Clique para avançar status">
-                        <span className={`badge border text-[11px] cursor-pointer hover:opacity-80 ${si.color}`}>
+                      <button
+                          onClick={() => cycleStatus(d)}
+                          disabled={pending || d.status === 'arquivado'}
+                          title={d.status === 'arquivado' ? 'Demanda arquivada' : 'Clique para avançar status'}
+                        >
+                        <span className={`badge border text-[11px] ${d.status === 'arquivado' ? 'cursor-default' : 'cursor-pointer hover:opacity-80'} ${si.color}`}>
                           {si.label}
                         </span>
                       </button>

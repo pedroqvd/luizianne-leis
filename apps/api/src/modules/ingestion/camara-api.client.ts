@@ -286,10 +286,12 @@ export class CamaraApiClient {
    * Busca IDs de um deputado em uma legislatura específica por nome parcial.
    * Usado para descobrir IDs históricos (mandatos anteriores).
    */
-  async findDeputyIdsByLegislatura(name: string, legislaturaId: number): Promise<number[]> {
+  async findDeputyIdsByLegislatura(name: string, legislaturaId: number, siglaUf?: string): Promise<number[]> {
+    const params: Record<string, any> = { nome: name, idLegislatura: legislaturaId, itens: 10 };
+    if (siglaUf) params.siglaUf = siglaUf;
     const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyListItem[]>>(
       '/deputados',
-      { params: { nome: name, idLegislatura: legislaturaId, itens: 10 } },
+      { params },
     );
     return (data?.dados ?? []).map((d) => d.id);
   }

@@ -17,7 +17,10 @@ interface Commission {
 
 function isActive(c: Commission) {
   if (!c.ended_at) return true;
-  return new Date(c.ended_at) > new Date();
+  // Append T23:59:59 so date-only strings don't parse as UTC midnight,
+  // which would incorrectly mark commissions as ended during Brazilian business hours.
+  const endsAt = c.ended_at.includes('T') ? c.ended_at : `${c.ended_at}T23:59:59`;
+  return new Date(endsAt) > new Date();
 }
 
 function fmt(d?: string | null) {

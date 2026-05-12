@@ -51,14 +51,6 @@ export interface DemandaInput {
   notes?: string;
 }
 
-export async function createDemanda(data: DemandaInput) {
-  const userId = await currentUserId();
-  const admin = createAdminClient();
-  const { error } = await admin.from('demands').insert({ ...data, created_by: userId });
-  if (error) throw new Error(error.message);
-  revalidatePath('/demandas');
-}
-
 export async function updateDemanda(id: number, data: Partial<DemandaInput>) {
   const userId = await currentUserId();
   await requireOwnershipOrAdmin(id, userId);

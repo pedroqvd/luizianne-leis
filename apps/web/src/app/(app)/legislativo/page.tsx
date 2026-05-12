@@ -113,15 +113,17 @@ export default async function LegislativoPage({
           </div>
           <select name="type" defaultValue={searchParams.type ?? ''} className="input w-auto text-xs">
             <option value="">Todos os tipos</option>
-            {['PL', 'PEC', 'PLP', 'REQ', 'INC', 'EMC'].map((t) => <option key={t} value={t}>{t}</option>)}
+            {['PL','PEC','PLP','PDL','PDS','PRC','PLV','MPV','REQ','INC','EMC','EMP','REC','PFC'].map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
           <select name="role" defaultValue={searchParams.role ?? ''} className="input w-auto text-xs">
             <option value="">Qualquer papel</option>
-            <option value="autor">Autorias</option>
-            <option value="relator">Relatorias</option>
-            <option value="coautor">Coautorias</option>
+            <option value="autor">Autora</option>
+            <option value="coautor">Coautora</option>
+            <option value="relator">Relatora</option>
           </select>
-          <input name="year" defaultValue={searchParams.year ?? ''} placeholder="Ano" className="input w-24 text-xs" />
+          <input name="year" defaultValue={searchParams.year ?? ''} placeholder="Ano (ex: 2023)" className="input w-32 text-xs" />
           <button type="submit" className="btn-primary text-xs py-2">
             <Filter className="w-3.5 h-3.5" /> Filtrar
           </button>
