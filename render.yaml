@@ -32,6 +32,46 @@ services:
         value: "https://dadosabertos.camara.leg.br/api/v2"
       - key: PG_POOL_MAX
         value: "5"
+      - key: PG_POOL_MIN
+        value: "1"
+      # Câmara API — rate-limit safety
+      - key: CAMARA_API_MIN_DELAY_MS
+        value: "200"
+      # Ingestion backfill start date
+      - key: INGEST_DATA_INICIO
+        value: "2015-02-01"
+      # PNCP — Portal Nacional de Contratações Públicas
+      - key: PNCP_API_BASE_URL
+        value: "https://pncp.gov.br/api/consulta"
+      # Transparência federal — emendas orçamentárias
+      - key: TRANSPARENCIA_API_BASE_URL
+        value: "https://api.portaldatransparencia.gov.br/api-de-dados"
+      - key: DEPUTY_TRANSPARENCIA_NAME
+        value: "LUIZIANNE LINS"
+      - key: EMENDAS_ORC_CRON
+        value: "0 3 * * 5"
+      - key: EMENDAS_ORC_START_YEAR
+        value: "2015"
+      # Cron schedules for new modules
+      - key: CEAP_CRON
+        value: "0 4 1 * *"
+      - key: DISCURSOS_CRON
+        value: "0 3 * * 0"
+      - key: FRENTES_CRON
+        value: "0 4 * * 6"
+      - key: ABSENCE_CRON
+        value: "0 20 * * *"
+      - key: LAWS_ALERT_CRON
+        value: "0 9 * * 1"
+      - key: EDITAIS_CRON
+        value: "0 */6 * * *"
+      - key: EDITAIS_ALERT_CRON
+        value: "0 8 * * *"
+      # SSL — Supabase requires TLS; auto-detected by hostname, explicit override available
+      - key: PG_SSL_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: REDIS_TLS_REJECT_UNAUTHORIZED
+        value: "true"
       # set these as secrets in the Render dashboard:
       - key: DATABASE_URL
         sync: false
@@ -40,4 +80,14 @@ services:
       - key: ADMIN_TOKEN
         sync: false
       - key: CORS_ORIGINS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: TRANSPARENCIA_API_KEY
+        sync: false
+      - key: DEPUTY_TRANSPARENCIA_CODE
         sync: false
