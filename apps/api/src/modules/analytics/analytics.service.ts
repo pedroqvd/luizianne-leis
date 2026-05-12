@@ -44,9 +44,17 @@ export class AnalyticsService {
         ),
       ]);
 
+      const row = prod[0];
       return {
         deputy: d,
-        productivity: prod[0] ?? null,
+        productivity: row
+          ? {
+              total_propositions: row.total_propositions,
+              authored: row.as_author,
+              coauthored: row.as_coauthor,
+              rapporteured: row.as_rapporteur,
+            }
+          : null,
         by_type: byType,
         by_year: byYear,
       };
