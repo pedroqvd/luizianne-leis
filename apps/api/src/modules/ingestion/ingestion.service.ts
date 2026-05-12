@@ -124,7 +124,7 @@ export class IngestionService {
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')
       .split(',').map((s) => s.trim()).filter(Boolean);
     for (const sigla of commissionSiglas) {
-      const commStats = await this.syncCommissionPropositions(deputy.id, sigla);
+      const commStats = await this.syncCommissionPropositions(deputy.id, sigla, historicalIdMap);
       totalProps += commStats.propositions;
       totalEvents += commStats.events;
     }
@@ -187,6 +187,7 @@ export class IngestionService {
   private async syncCommissionPropositions(
     deputyId: number,
     siglaOrgao: string,
+    historicalIdMap?: Map<number, number>,
   ): Promise<{ propositions: number; events: number }> {
     let totalProps = 0;
     let totalEvents = 0;
@@ -201,7 +202,7 @@ export class IngestionService {
       const batches = chunk(items, this.concurrency);
       for (const batch of batches) {
         const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId)),
+          batch.map((p: any) => this.syncPropositionSafe(p.id, deputyId, historicalIdMap)),
         );
         for (const r of results) {
           if (r.status === 'fulfilled') {

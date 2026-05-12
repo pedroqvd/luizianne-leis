@@ -32,6 +32,7 @@ export function PresenceForm({ onClose }: Props) {
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
   }
@@ -140,7 +141,7 @@ export function PresenceForm({ onClose }: Props) {
                 <Image src={photoPreview} alt="preview" fill className="object-cover rounded-lg" />
                 <button
                   type="button"
-                  onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
+                  onClick={() => { if (photoPreview) URL.revokeObjectURL(photoPreview); setPhotoFile(null); setPhotoPreview(null); }}
                   className="absolute top-2 right-2 bg-white rounded-full p-1 shadow text-slate-500 hover:text-red-500"
                 >
                   <X className="w-3.5 h-3.5" />

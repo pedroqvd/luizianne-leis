@@ -48,6 +48,7 @@ export function PresenceClient({ records: initial }: Props) {
   const [records, setRecords] = useState(initial);
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<'todas' | 'brasilia' | 'fortaleza'>('todas');
+  const [deleteError, setDeleteError] = useState('');
   const [deleting, startDelete] = useTransition();
 
   const filtered = filter === 'todas' ? records : records.filter(r => r.location === filter);
@@ -55,9 +56,14 @@ export function PresenceClient({ records: initial }: Props) {
 
   function handleDelete(id: number) {
     if (!confirm('Remover este registro?')) return;
+    setDeleteError('');
     startDelete(async () => {
-      await deletePresenceRecord(id);
-      setRecords(r => r.filter(x => x.id !== id));
+      try {
+        await deletePresenceRecord(id);
+        setRecords(r => r.filter(x => x.id !== id));
+      } catch (e: any) {
+        setDeleteError(e.message ?? 'Erro ao remover registro.');
+      }
     });
   }
 
@@ -109,6 +115,10 @@ export function PresenceClient({ records: initial }: Props) {
           </button>
         ))}
       </div>
+
+      {deleteError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</p>
+      )}
 
       {/* Timeline */}
       {filtered.length === 0 ? (
