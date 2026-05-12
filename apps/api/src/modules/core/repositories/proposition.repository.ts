@@ -70,14 +70,18 @@ export class PropositionRepository {
 
     const limitIdx = i++;
     const offsetIdx = i++;
+    const targetExtIdx = i++; // only used in dataSql subquery, not in countSql
     params.push(limit, offset);
 
     const targetExtId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
+    // dataParams adds targetExtId at end — countSql receives only filterParams (no limit/offset/targetExtId)
+    const dataParams = [...params, targetExtId];
+
     const dataSql = `
       SELECT DISTINCT p.id, p.external_id, p.type, p.number, p.year, p.title, p.summary, p.status, p.keywords, p.url, p.presented_at, p.updated_at,
         (SELECT pa2.role FROM proposition_authors pa2
           JOIN deputies d2 ON d2.id = pa2.deputy_id
-          WHERE pa2.proposition_id = p.id AND d2.external_id = ${targetExtId}
+          WHERE pa2.proposition_id = p.id AND d2.external_id = $${targetExtIdx}
           LIMIT 1) AS deputy_role
       FROM ${from}
       ${whereSql}
@@ -85,11 +89,11 @@ export class PropositionRepository {
       LIMIT $${limitIdx} OFFSET $${offsetIdx}`;
     const countSql = `SELECT COUNT(DISTINCT p.id)::int AS c FROM ${from} ${whereSql}`;
 
-    // countSql usa apenas os params de filtro (sem limit/offset)
+    // countSql usa apenas os params de filtro (sem limit/offset/targetExtId)
     const filterParams = params.slice(0, params.length - 2);
 
     const [data, count] = await Promise.all([
-      this.pool.query(dataSql, params),
+      this.pool.query(dataSql, dataParams),
       this.pool.query(countSql, filterParams),
     ]);
 

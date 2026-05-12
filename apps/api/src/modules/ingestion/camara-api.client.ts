@@ -133,6 +133,7 @@ export interface CamaraDespesa {
   numDocumento?: string;
   valorBruto?: number;
   valorGlosa?: number;
+  valorLiquido?: number;   // API returns ASCII key; kept accented alias below for compat
   valorLíquido?: number;
   numRessarcimento?: string;
   codLote?: number;
