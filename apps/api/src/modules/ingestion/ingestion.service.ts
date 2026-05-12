@@ -344,12 +344,36 @@ export class IngestionService {
       }
     }
 
+    // Sync proposições relacionadas/apensadas fora da transação principal
+    await this.syncRelatedPropositions(proposition.id, externalId);
+
     return { eventsEmitted };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
     } finally {
       client.release();
+    }
+  }
+
+  private async syncRelatedPropositions(propositionId: number, externalPropId: number) {
+    try {
+      const related = await this.api.listRelatedPropositions(externalPropId);
+      for (const r of related) {
+        await this.props.upsertRelation({
+          proposition_id: propositionId,
+          related_external_id: r.id,
+          related_sigla_tipo: r.siglaTipo ?? null,
+          related_numero: r.numero ?? null,
+          related_ano: r.ano ?? null,
+          related_ementa: r.ementa ?? null,
+        });
+      }
+      if (related.length > 0) {
+        this.logger.debug(`synced ${related.length} related propositions for ${externalPropId}`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`related propositions sync failed for ${externalPropId}: ${e.message}`);
     }
   }
 

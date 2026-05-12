@@ -256,4 +256,54 @@ export class PropositionRepository {
     );
     return rows;
   }
+
+  async upsertRelation(r: {
+    proposition_id: number;
+    related_external_id: number;
+    related_sigla_tipo?: string | null;
+    related_numero?: number | null;
+    related_ano?: number | null;
+    related_ementa?: string | null;
+    relation_type?: string;
+  }): Promise<void> {
+    const relatedInternal = await this.findByExternalId(r.related_external_id);
+    await this.pool.query(
+      `INSERT INTO proposition_relations
+         (proposition_id, related_external_id, related_internal_id,
+          related_sigla_tipo, related_numero, related_ano, related_ementa, relation_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (proposition_id, related_external_id) DO UPDATE
+         SET related_internal_id  = EXCLUDED.related_internal_id,
+             related_sigla_tipo   = EXCLUDED.related_sigla_tipo,
+             related_numero       = EXCLUDED.related_numero,
+             related_ano          = EXCLUDED.related_ano,
+             related_ementa       = EXCLUDED.related_ementa,
+             relation_type        = EXCLUDED.relation_type`,
+      [
+        r.proposition_id,
+        r.related_external_id,
+        relatedInternal?.id ?? null,
+        r.related_sigla_tipo ?? null,
+        r.related_numero ?? null,
+        r.related_ano ?? null,
+        r.related_ementa ?? null,
+        r.relation_type ?? 'relacionada',
+      ],
+    );
+  }
+
+  async listRelations(propositionId: number) {
+    const { rows } = await this.pool.query(
+      `SELECT pr.related_external_id, pr.related_internal_id,
+              pr.related_sigla_tipo, pr.related_numero, pr.related_ano,
+              pr.related_ementa, pr.relation_type,
+              p.title AS related_title, p.status AS related_status, p.url AS related_url
+         FROM proposition_relations pr
+         LEFT JOIN propositions p ON p.id = pr.related_internal_id
+         WHERE pr.proposition_id = $1
+         ORDER BY pr.related_ano DESC NULLS LAST, pr.related_numero DESC NULLS LAST`,
+      [propositionId],
+    );
+    return rows;
+  }
 }

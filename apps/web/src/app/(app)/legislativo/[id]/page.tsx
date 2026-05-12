@@ -1,6 +1,19 @@
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, FileText, Users, GitBranch, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileText, Users, GitBranch, Clock, CheckCircle, AlertCircle, Link2 } from 'lucide-react';
+
+interface RelatedProposition {
+  related_external_id: number;
+  related_internal_id: number | null;
+  related_sigla_tipo: string | null;
+  related_numero: number | null;
+  related_ano: number | null;
+  related_ementa: string | null;
+  relation_type: string;
+  related_title: string | null;
+  related_status: string | null;
+  related_url: string | null;
+}
 
 interface Detail {
   id: number; external_id: number | null; type: string; number: number | null; year: number | null;
@@ -8,6 +21,7 @@ interface Detail {
   url: string | null; presented_at: string | null;
   authors: { id: number; name: string; party: string; state: string; role: string }[];
   proceedings: { id: number; date: string | null; description: string | null; status_at_time: string | null }[];
+  relations: RelatedProposition[];
 }
 
 function camaraUrl(detail: Pick<Detail, 'url' | 'external_id'>): string | null {
@@ -156,6 +170,56 @@ export default async function LegislativoDetailPage({ params }: { params: { id: 
           <p className="text-sm text-slate-400 py-4 text-center">Sem tramitação registrada.</p>
         )}
       </section>
+
+      {/* Proposições Relacionadas / Apensadas */}
+      {(data.relations?.length ?? 0) > 0 && (
+        <section className="stat-card space-y-3">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-700">
+              Proposições Relacionadas ({data.relations.length})
+            </h2>
+          </div>
+          <ul className="space-y-2">
+            {data.relations.map((r) => {
+              const label = r.related_sigla_tipo && r.related_numero
+                ? `${r.related_sigla_tipo} ${r.related_numero}${r.related_ano ? `/${r.related_ano}` : ''}`
+                : `Proposição #${r.related_external_id}`;
+              const camaraHref = `https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=${r.related_external_id}`;
+              const ementa = r.related_title ?? r.related_ementa;
+              return (
+                <li key={r.related_external_id}
+                  className="flex flex-col gap-1 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-lg">
+                      {label}
+                    </span>
+                    {r.related_status && (
+                      <span className="text-[11px] text-slate-500 bg-white border border-slate-100 px-1.5 py-0.5 rounded">
+                        {r.related_status}
+                      </span>
+                    )}
+                    {r.related_internal_id ? (
+                      <Link href={`/legislativo/${r.related_internal_id}`}
+                        className="ml-auto text-[11px] text-brand-600 hover:text-brand-800 font-medium flex items-center gap-1">
+                        Ver detalhes
+                      </Link>
+                    ) : (
+                      <a href={camaraHref} target="_blank" rel="noopener noreferrer"
+                        className="ml-auto text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                        <ExternalLink className="w-3 h-3" /> Câmara
+                      </a>
+                    )}
+                  </div>
+                  {ementa && (
+                    <p className="text-xs text-slate-500 leading-snug line-clamp-2">{ementa}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </article>
   );
 }

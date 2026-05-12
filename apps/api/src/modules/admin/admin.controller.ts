@@ -3,7 +3,7 @@ import { Controller, Headers, HttpCode, Post, Query, Logger, UseGuards } from '@
 function formatDate(d: Date): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
@@ -14,6 +14,7 @@ import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
 import { AdminGuard } from './admin.guard';
 
 @ApiTags('admin')
+@ApiSecurity('x-admin-token')
 @Public()
 @UseGuards(AdminGuard)
 @Controller('admin')
