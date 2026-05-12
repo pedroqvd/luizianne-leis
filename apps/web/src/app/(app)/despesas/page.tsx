@@ -155,26 +155,28 @@ export default async function DespesasPage({
           <div className="stat-card space-y-3">
             <h3 className="text-sm font-semibold text-slate-700">Por ano</h3>
             <ul className="space-y-1.5">
-              {byYear.slice(0, 12).map((y) => {
-                const maxY = Number(byYear[0]?.liquido ?? 1) || 1;
-                const pct = Math.round((Number(y.liquido) / maxY) * 100);
-                return (
-                  <li key={y.ano}>
-                    <Link
-                      href={buildHref({ ano: String(y.ano) })}
-                      className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1 transition-colors ${
-                        ano === String(y.ano) ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50 text-slate-600'
-                      }`}
-                    >
-                      <span className="font-semibold w-10 flex-shrink-0">{y.ano}</span>
-                      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-brand-400 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="font-semibold text-slate-800 flex-shrink-0">{fmtBRL(y.liquido)}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {(() => {
+                const maxY = Math.max(...byYear.map(y => Number(y.liquido))) || 1;
+                return byYear.slice(0, 12).map((y) => {
+                  const pct = Math.round((Number(y.liquido) / maxY) * 100);
+                  return (
+                    <li key={y.ano}>
+                      <Link
+                        href={buildHref({ ano: String(y.ano) })}
+                        className={`flex items-center gap-2 text-xs rounded-lg px-2 py-1 transition-colors ${
+                          ano === String(y.ano) ? 'bg-brand-50 text-brand-700' : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <span className="font-semibold w-10 flex-shrink-0">{y.ano}</span>
+                        <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="font-semibold text-slate-800 flex-shrink-0">{fmtBRL(y.liquido)}</span>
+                      </Link>
+                    </li>
+                  );
+                });
+              })()}
             </ul>
           </div>
         )}
@@ -182,7 +184,7 @@ export default async function DespesasPage({
 
       {/* Filtros */}
       <form method="GET" className="flex flex-wrap gap-2 items-center">
-        <input type="hidden" name="ano" value={ano ?? ''} />
+        {ano && <input type="hidden" name="ano" value={ano} />}
         <input
           name="search"
           defaultValue={search ?? ''}

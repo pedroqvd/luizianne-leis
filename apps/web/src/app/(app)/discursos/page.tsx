@@ -79,7 +79,7 @@ export default async function DiscursosPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
-  const maxYear = byYear.length > 0 ? (byYear[0]?.total ?? 1) || 1 : 1;
+  const maxYear = byYear.length > 0 ? (Math.max(...byYear.map(y => y.total)) || 1) : 1;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -145,6 +145,7 @@ export default async function DiscursosPage({
 
       {/* Filtros */}
       <form method="GET" className="flex flex-wrap gap-2 items-center">
+        {ano && <input type="hidden" name="ano" value={ano} />}
         <input
           name="search"
           defaultValue={search ?? ''}
