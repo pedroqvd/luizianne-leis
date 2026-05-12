@@ -544,6 +544,17 @@ export class CamaraApiClient {
       return [];
     }
   }
+
+  async listRelatedPropositions(externalId: number): Promise<CamaraPropositionListItem[]> {
+    try {
+      const { data } = await this.http.get<CamaraEnvelope<CamaraPropositionListItem[]>>(
+        `/proposicoes/${externalId}/relacionadas`,
+      );
+      return data?.dados ?? [];
+    } catch {
+      return [];
+    }
+  }
 }
 
 export function extractDeputyIdFromUri(uri?: string): number | null {

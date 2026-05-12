@@ -17,10 +17,11 @@ export class PropositionsService {
   async getById(id: number) {
     const proposition = await this.repo.findById(id);
     if (!proposition) throw new NotFoundException('Proposição não encontrada');
-    const [authors, proceedings] = await Promise.all([
+    const [authors, proceedings, relations] = await Promise.all([
       this.repo.listAuthors(id),
       this.repo.listProceedings(id),
+      this.repo.listRelations(id),
     ]);
-    return { ...proposition, authors, proceedings };
+    return { ...proposition, authors, proceedings, relations };
   }
 }

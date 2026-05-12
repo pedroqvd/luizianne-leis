@@ -48,6 +48,7 @@ async function bootstrap() {
       .setDescription('Plataforma de transparência legislativa')
       .setVersion('0.1.0')
       .addBearerAuth()
+      .addApiKey({ type: 'apiKey', in: 'header', name: 'x-admin-token', description: 'Token de administrador (ADMIN_TOKEN)' }, 'x-admin-token')
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('docs', app, document);
