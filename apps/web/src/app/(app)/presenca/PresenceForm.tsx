@@ -67,7 +67,8 @@ export function PresenceForm({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-up">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-900">Registrar Presença</h2>
@@ -167,6 +168,7 @@ export function PresenceForm({ onClose }: Props) {
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );
