@@ -55,37 +55,60 @@ export class IngestionService {
 
     await this.syncDeputyCommissions(deputy.id, deputy.external_id);
 
-    let totalProps = 0;
-    let totalEvents = 0;
-    let page = 1;
+    // Descobrir IDs históricos da deputada nas legislaturas anteriores.
+    // A Câmara API usa IDs distintos por mandato — sem isso apenas a legislatura
+    // atual (TARGET_DEPUTY_EXTERNAL_ID) seria buscada.
+    const deputyName = process.env.TARGET_DEPUTY_NAME ?? 'Luizianne';
+    const currentLegislatura = Number(process.env.TARGET_DEPUTY_LEGISLATURA ?? 57);
+    const startLegislatura = Number(process.env.INGEST_START_LEGISLATURA ?? 55); // 55ª = 2015-2019
+    const allDeputyIds = new Set<number>([externalId]);
 
-    while (page <= 500) {
-      const { items } = await this.api.listAuthoredPropositions(deputy.external_id, page, 100);
-      if (!items.length) break;
-
-      const batches = chunk(items, this.concurrency);
-      for (const batch of batches) {
-        const results = await Promise.allSettled(
-          batch.map((p: any) => this.syncPropositionSafe(p.id, deputy.id)),
-        );
-        for (const r of results) {
-          if (r.status === 'fulfilled') {
-            totalProps += 1;
-            totalEvents += r.value.eventsEmitted;
-          } else {
-            this.logger.warn(`proposition sync failed: ${r.reason?.message ?? r.reason}`);
-          }
-        }
+    for (let leg = startLegislatura; leg < currentLegislatura; leg++) {
+      try {
+        const ids = await this.api.findDeputyIdsByLegislatura(deputyName, leg);
+        ids.forEach((id) => allDeputyIds.add(id));
+        this.logger.log(`legislatura ${leg}: found ids [${ids.join(', ')}]`);
+      } catch (e: any) {
+        this.logger.warn(`failed to discover ids for legislatura ${leg}: ${e.message}`);
       }
-
-      if (items.length < 100) break;
-      page += 1;
     }
 
-    // Fase 4: ingerir proposições onde a deputada é relatora
-    const relatorStats = await this.syncRelatorPropositions(deputy.id, deputy.external_id);
-    totalProps += relatorStats.propositions;
-    totalEvents += relatorStats.events;
+    this.logger.log(`syncing propositions for deputy ids: [${Array.from(allDeputyIds).join(', ')}]`);
+
+    let totalProps = 0;
+    let totalEvents = 0;
+
+    // Fases 1–3: proposições por autor (todas as legislaturas)
+    for (const depId of allDeputyIds) {
+      let page = 1;
+      while (page <= 500) {
+        const { items } = await this.api.listAuthoredPropositions(depId, page, 100);
+        if (!items.length) break;
+
+        const batches = chunk(items, this.concurrency);
+        for (const batch of batches) {
+          const results = await Promise.allSettled(
+            batch.map((p: any) => this.syncPropositionSafe(p.id, deputy.id)),
+          );
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              totalProps += 1;
+              totalEvents += r.value.eventsEmitted;
+            } else {
+              this.logger.warn(`proposition sync failed: ${r.reason?.message ?? r.reason}`);
+            }
+          }
+        }
+
+        if (items.length < 100) break;
+        page += 1;
+      }
+
+      // Relatora — também por legislatura
+      const relatorStats = await this.syncRelatorPropositions(deputy.id, depId);
+      totalProps += relatorStats.propositions;
+      totalEvents += relatorStats.events;
+    }
 
     // Fase 5: ingerir proposições de comissões onde a deputada exerce presidência
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')

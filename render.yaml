@@ -28,6 +28,12 @@ services:
         value: "120"
       - key: TARGET_DEPUTY_EXTERNAL_ID
         value: "178866"
+      - key: TARGET_DEPUTY_NAME
+        value: "Luizianne"
+      - key: TARGET_DEPUTY_LEGISLATURA
+        value: "57"
+      - key: INGEST_START_LEGISLATURA
+        value: "55"
       - key: CAMARA_API_BASE_URL
         value: "https://dadosabertos.camara.leg.br/api/v2"
       - key: PG_POOL_MAX
