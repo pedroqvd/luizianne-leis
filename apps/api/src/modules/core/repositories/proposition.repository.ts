@@ -55,6 +55,10 @@ export class PropositionRepository {
       if (filter.authorDeputyId) {
         from += ` AND pa.deputy_id = $${i++}`;
         params.push(filter.authorDeputyId);
+      } else if (filter.role) {
+        // Role filter must always be scoped to the target deputy to avoid cross-deputy leakage
+        from += ` JOIN deputies d_role ON d_role.id = pa.deputy_id AND d_role.external_id = $${i++}`;
+        params.push(Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866));
       }
       if (filter.role) {
         from += ` AND pa.role = $${i++}`;

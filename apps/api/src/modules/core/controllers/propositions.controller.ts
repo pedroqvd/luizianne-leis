@@ -11,7 +11,7 @@ export class PropositionsController {
   @ApiQuery({ name: 'type',   required: false })
   @ApiQuery({ name: 'year',   required: false, type: Number })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'role',   required: false })
+  @ApiQuery({ name: 'role',   required: false, description: 'autor|coautor|relator (or author|coauthor|rapporteur)' })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'limit',  required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
@@ -24,11 +24,16 @@ export class PropositionsController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const ROLE_MAP: Record<string, string> = {
+      autor: 'author', coautor: 'coauthor', relator: 'rapporteur',
+    };
+    const mappedRole = role ? (ROLE_MAP[role.toLowerCase()] ?? role) : undefined;
+
     return this.service.list({
       type,
       year: year ? Number(year) : undefined,
       status,
-      role,
+      role: mappedRole,
       search,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
