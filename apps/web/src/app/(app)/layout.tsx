@@ -28,7 +28,7 @@ async function getUserContext(): Promise<{ isAdmin: boolean; allowedTabs: string
       .from('user_tab_permissions').select('tab_slug, enabled').eq('user_id', user.id);
     if (!perms?.length) return { isAdmin: false, allowedTabs: null };
 
-    const ALL_SLUGS = ['legislativo','emendas','votes','comissoes','editais','analytics','atividade','presenca','demandas'];
+    const ALL_SLUGS = ['legislativo','emendas','votes','comissoes','editais','analytics','atividade','presenca','demandas','despesas','discursos','frentes'];
     const map = Object.fromEntries(perms.map(p => [p.tab_slug, p.enabled]));
     const allowedTabs = ALL_SLUGS.filter(s => map[s] !== false);
     return { isAdmin, allowedTabs };
