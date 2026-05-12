@@ -30,6 +30,8 @@ services:
         value: "178866"
       - key: TARGET_DEPUTY_NAME
         value: "Luizianne"
+      - key: TARGET_DEPUTY_UF
+        value: "CE"
       - key: TARGET_DEPUTY_LEGISLATURA
         value: "57"
       - key: INGEST_START_LEGISLATURA
