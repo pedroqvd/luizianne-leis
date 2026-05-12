@@ -32,10 +32,11 @@ export class CeapRepository {
         updated_at        = NOW()`,
       [
         deputyId,
-        row.ano, row.mes, row.tipoDespesa, row.codDocumento ?? null, row.tipoDocumento,
+        row.ano, row.mes, row.tipoDespesa,
+        row.codDocumento != null ? String(row.codDocumento) : null, row.tipoDocumento,
         row.dataDocumento ?? null, row.numDocumento,
         row.valorBruto ?? 0, row.valorGlosa ?? 0, row.valorLiquido ?? row.valorLíquido ?? 0,
-        row.numRessarcimento, row.codLote ?? null,
+        row.numRessarcimento, row.codLote != null ? String(row.codLote) : null,
         row.fornecedor, row.nomeFornecedor, row.cnpjCpfFornecedor,
         row.urlDocumento, JSON.stringify(row),
       ],

@@ -137,7 +137,7 @@ export interface CamaraDespesa {
   ano: number;
   mes: number;
   tipoDespesa?: string;
-  codDocumento?: number;
+  codDocumento?: string | number; // API may return numeric or UUID string
   tipoDocumento?: string;
   dataDocumento?: string;
   numDocumento?: string;
@@ -146,7 +146,7 @@ export interface CamaraDespesa {
   valorLiquido?: number;   // API returns ASCII key; kept accented alias below for compat
   valorLíquido?: number;
   numRessarcimento?: string;
-  codLote?: number;
+  codLote?: string | number; // API may return numeric or UUID string
   fornecedor?: string;
   nomeFornecedor?: string;
   cnpjCpfFornecedor?: string;
