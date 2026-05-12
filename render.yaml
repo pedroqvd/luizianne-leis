@@ -27,7 +27,7 @@ services:
       - key: RATE_LIMIT_MAX
         value: "120"
       - key: TARGET_DEPUTY_EXTERNAL_ID
-        value: "141401"
+        value: "178866"
       - key: CAMARA_API_BASE_URL
         value: "https://dadosabertos.camara.leg.br/api/v2"
       - key: PG_POOL_MAX
