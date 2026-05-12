@@ -67,8 +67,8 @@ export function DemandaModal({ onClose, members, initial }: Props) {
     startTransition(async () => {
       try {
         if (initial) {
-          await updateDemanda(initial.id, data);
-          onClose();
+          const updated = await updateDemanda(initial.id, data);
+          onClose(updated);
         } else {
           const created = await createDemandaAndReturn(data);
           onClose(created);

@@ -60,13 +60,18 @@ export async function createDemanda(data: DemandaInput) {
 }
 
 export async function updateDemanda(id: number, data: Partial<DemandaInput>) {
-  // FIX F3 (ALTO): Verificar ownership/admin antes de permitir update
   const userId = await currentUserId();
   await requireOwnershipOrAdmin(id, userId);
   const admin = createAdminClient();
-  const { error } = await admin.from('demands').update(data).eq('id', id);
+  const { data: row, error } = await admin
+    .from('demands')
+    .update(data)
+    .eq('id', id)
+    .select('*, assignee:assigned_to(name)')
+    .single();
   if (error) throw new Error(error.message);
   revalidatePath('/demandas');
+  return row;
 }
 
 export async function deleteDemanda(id: number) {

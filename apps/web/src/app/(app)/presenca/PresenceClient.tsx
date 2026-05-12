@@ -164,7 +164,14 @@ export function PresenceClient({ records: initial }: Props) {
         </div>
       )}
 
-      {showForm && <PresenceForm onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <PresenceForm
+          onClose={(record) => {
+            if (record) setRecords(rs => [record, ...rs]);
+            setShowForm(false);
+          }}
+        />
+      )}
     </div>
   );
 }
