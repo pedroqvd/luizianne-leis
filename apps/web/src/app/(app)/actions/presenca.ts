@@ -20,12 +20,14 @@ export async function createPresenceRecord(data: {
 }) {
   const userId = await currentUserId();
   const admin = createAdminClient();
-  const { error } = await admin.from('presence_records').insert({
-    ...data,
-    created_by: userId,
-  });
+  const { data: row, error } = await admin
+    .from('presence_records')
+    .insert({ ...data, created_by: userId })
+    .select('*, creator:created_by(name)')
+    .single();
   if (error) throw new Error(error.message);
   revalidatePath('/presenca');
+  return row;
 }
 
 export async function deletePresenceRecord(id: number) {

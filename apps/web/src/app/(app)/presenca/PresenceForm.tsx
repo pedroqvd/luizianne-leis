@@ -16,7 +16,7 @@ const TYPES = [
   { value: 'outro',       label: 'Outro' },
 ];
 
-interface Props { onClose: () => void }
+interface Props { onClose: (record?: any) => void }
 
 export function PresenceForm({ onClose }: Props) {
   const today = new Date().toISOString().split('T')[0];
@@ -57,8 +57,8 @@ export function PresenceForm({ onClose }: Props) {
           const { data } = supabase.storage.from('presence-photos').getPublicUrl(path);
           photo_url = data.publicUrl;
         }
-        await createPresenceRecord({ location, date, type, notes: notes || undefined, photo_url });
-        onClose();
+        const record = await createPresenceRecord({ location, date, type, notes: notes || undefined, photo_url });
+        onClose(record);
       } catch (e: any) {
         setError(e.message ?? 'Erro ao salvar.');
       }

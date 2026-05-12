@@ -209,8 +209,14 @@ export function DemandasClient({ demands: initial, members }: Props) {
 
       {showModal && (
         <DemandaModal
-          onClose={(created) => {
-            if (created && !editing) setDemands(ds => [created, ...ds]);
+          onClose={(result) => {
+            if (result) {
+              if (editing) {
+                setDemands(ds => ds.map(d => d.id === result.id ? result : d));
+              } else {
+                setDemands(ds => [result, ...ds]);
+              }
+            }
             setShowModal(false);
             setEditing(null);
           }}
