@@ -45,6 +45,16 @@ export interface CamaraPropositionDetail extends CamaraPropositionListItem {
   };
 }
 
+export interface CamaraDeputyListItem {
+  id: number;
+  nome: string;
+  siglaPartido?: string;
+  siglaUf?: string;
+  idLegislatura?: number;
+  urlFoto?: string;
+  uri?: string;
+}
+
 export interface CamaraAuthor {
   uri?: string;
   nome?: string;
@@ -270,6 +280,18 @@ export class CamaraApiClient {
       `/deputados/${id}`,
     );
     return data?.dados ?? null;
+  }
+
+  /**
+   * Busca IDs de um deputado em uma legislatura específica por nome parcial.
+   * Usado para descobrir IDs históricos (mandatos anteriores).
+   */
+  async findDeputyIdsByLegislatura(name: string, legislaturaId: number): Promise<number[]> {
+    const { data } = await this.http.get<CamaraEnvelope<CamaraDeputyListItem[]>>(
+      '/deputados',
+      { params: { nome: name, idLegislatura: legislaturaId, itens: 10 } },
+    );
+    return (data?.dados ?? []).map((d) => d.id);
   }
 
   async listAuthoredPropositions(
