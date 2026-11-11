@@ -19,8 +19,9 @@ export class OutboxWorker {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
-    const client = await this.pool.connect();
+    let client: import('pg').PoolClient | null = null;
     try {
+      client = await this.pool.connect();
       // Wrap in a transaction so FOR UPDATE SKIP LOCKED holds the row locks
       // until COMMIT, preventing concurrent workers from claiming the same events.
       await client.query('BEGIN');
@@ -57,12 +58,14 @@ export class OutboxWorker {
         this.logger.log(`Dispatched ${dispatched}/${rows.length} outbox events`);
       }
     } catch (e: any) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      if (client) {
+        await client.query('ROLLBACK').catch(() => undefined);
+      }
       // Silently ignore if table doesn't exist yet (pre-migration 013)
       if (e.message?.includes('outbox_events') && e.code === '42P01') return;
-      this.logger.error(`Outbox worker error: ${e.message}`);
+      this.logger.warn(`Outbox worker error: ${e.message || e.code || 'database connection error'}`);
     } finally {
-      client.release();
+      client?.release();
       this.isProcessing = false;
     }
   }
