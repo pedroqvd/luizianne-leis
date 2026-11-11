@@ -13,6 +13,8 @@ import {
 import { Interval } from '@nestjs/schedule';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Pool } from 'pg';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PG_POOL } from '../../infra/database/database.module';
 import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
@@ -100,7 +102,8 @@ export class AdminController implements OnApplicationBootstrap {
         (SELECT COUNT(*)::int FROM ceap_despesas)         AS ceap_cnt,
         (SELECT MAX(updated_at) FROM ceap_despesas)       AS ceap_last,
         (SELECT COUNT(*)::int FROM emendas_orcamentarias) AS emendas_cnt,
-        (SELECT MAX(updated_at) FROM emendas_orcamentarias) AS emendas_last
+        (SELECT MAX(updated_at) FROM emendas_orcamentarias) AS emendas_last,
+        (SELECT COUNT(*)::int FROM municipal_authorities WHERE role_type = 'prefeito' AND active = true) AS prefeitos_cnt
     `);
     const st = rows[0] ?? {};
     const now = Date.now();
@@ -183,6 +186,16 @@ export class AdminController implements OnApplicationBootstrap {
       );
     }
 
+    // 7. Prefeitos do Ceará (184 municípios com dados oficiais 2025-2028)
+    const prefeitosEmpty = (st.prefeitos_cnt ?? 0) < 184;
+    if (prefeitosEmpty && this.canTrigger('seed_mayors', 60_000)) {
+      this.logger.log(`[AutoSync:${source}] Triggering 184 Ceará Mayors seeding (cnt=${st.prefeitos_cnt})...`);
+      triggered.push('prefeitos');
+      this.seedMayors().catch((e) =>
+        this.logger.warn(`[AutoSync] Mayors seed failed: ${e.message}`),
+      );
+    }
+
     return {
       ok: true,
       source,
@@ -194,6 +207,7 @@ export class AdminController implements OnApplicationBootstrap {
         discursos: st.discursos_cnt ?? 0,
         ceap: st.ceap_cnt ?? 0,
         emendas: st.emendas_cnt ?? 0,
+        prefeitos: st.prefeitos_cnt ?? 0,
       },
     };
   }
@@ -275,6 +289,33 @@ export class AdminController implements OnApplicationBootstrap {
   @Post('check-laws')
   async triggerLawsAlert() {
     const result = await this.laws.checkApprovedLaws();
+    return { ok: true, ...result };
+  }
+
+  async seedMayors(): Promise<{ seeded: number }> {
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'db/migrations/019_seed_184_ceara_mayors.sql'),
+      path.resolve(process.cwd(), '../../db/migrations/019_seed_184_ceara_mayors.sql'),
+      path.resolve(__dirname, '../../../../../db/migrations/019_seed_184_ceara_mayors.sql'),
+    ];
+    const migrationFile = candidatePaths.find((p) => fs.existsSync(p));
+    if (!migrationFile) {
+      throw new Error('Arquivo de migração dos 184 prefeitos (019_seed_184_ceara_mayors.sql) não encontrado.');
+    }
+    const sql = fs.readFileSync(migrationFile, 'utf8');
+    await this.pool.query(sql);
+    const { rows } = await this.pool.query(
+      `SELECT COUNT(*)::int as cnt FROM municipal_authorities WHERE role_type = 'prefeito' AND active = true`,
+    );
+    const count = rows[0]?.cnt ?? 0;
+    this.logger.log(`184 Ceará Mayors seeded/upserted successfully. Total active mayors: ${count}`);
+    return { seeded: count };
+  }
+
+  @UseGuards(AdminGuard)
+  @Post('seed-mayors')
+  async triggerSeedMayors() {
+    const result = await this.seedMayors();
     return { ok: true, ...result };
   }
 }

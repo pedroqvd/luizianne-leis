@@ -15,7 +15,10 @@ const ALLOWED_AUTHORITY_ROLES = [
 
 const ALLOWED_ALLIED_STATUSES = [
   'aliado_base_elmano',
+  'base_elmano_luizianne',
+  'aliado_prioritario',
   'parceiro_estrategico',
+  'parceiro_institucional',
   'em_articulacao',
   'institucional',
 ] as const;
@@ -60,10 +63,17 @@ export interface AuthorityInput {
   id?: string;
   municipality_id: number;
   name: string;
+  ballot_name?: string | null;
   role: string;
   party?: string | null;
   allied_status: string;
   mayor_mandate?: string | null;
+  vice_mayor?: string | null;
+  votes_2024?: number | null;
+  percentage_2024?: number | null;
+  is_reelected?: boolean | null;
+  electoral_history?: any | null;
+  verification_sources?: string[] | null;
   senator_votes?: number | null;
   phone?: string | null;
   whatsapp?: string | null;
@@ -344,10 +354,27 @@ export async function saveAuthority(input: AuthorityInput) {
   const payload: Record<string, any> = {
     municipality_id: municipalityId,
     name,
+    ballot_name: input.ballot_name ? String(input.ballot_name).trim().slice(0, 150) : null,
     role,
+    role_type: role,
     party: input.party ? String(input.party).trim().toUpperCase().slice(0, 30) : null,
     allied_status: alliedStatus,
     mayor_mandate: input.mayor_mandate ? String(input.mayor_mandate).trim().slice(0, 50) : null,
+    mandate_period: input.mayor_mandate ? String(input.mayor_mandate).trim().slice(0, 50) : '2025-2028',
+    vice_mayor: input.vice_mayor ? String(input.vice_mayor).trim().slice(0, 255) : null,
+    votes_2024:
+      input.votes_2024 != null && Number.isFinite(Number(input.votes_2024))
+        ? Math.max(0, Math.floor(Number(input.votes_2024)))
+        : null,
+    percentage_2024:
+      input.percentage_2024 != null && Number.isFinite(Number(input.percentage_2024))
+        ? Number(input.percentage_2024)
+        : null,
+    is_reelected: Boolean(input.is_reelected),
+    electoral_history: input.electoral_history ?? null,
+    verification_sources: Array.isArray(input.verification_sources)
+      ? input.verification_sources
+      : null,
     senator_votes:
       input.senator_votes != null && Number.isFinite(Number(input.senator_votes))
         ? Math.max(0, Math.floor(Number(input.senator_votes)))
