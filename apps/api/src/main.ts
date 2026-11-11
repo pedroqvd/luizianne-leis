@@ -45,6 +45,14 @@ async function bootstrap() {
     next();
   });
 
+  // Normaliza requisições com prefixo /api/api/... para /api/...
+  app.use((req: any, _res: any, next: () => void) => {
+    if (req.url && req.url.startsWith('/api/api/')) {
+      req.url = req.url.replace(/^\/api\/api\//, '/api/');
+    }
+    next();
+  });
+
   app.setGlobalPrefix('api', { exclude: ['health'] });
   app.useGlobalPipes(
     new ValidationPipe({

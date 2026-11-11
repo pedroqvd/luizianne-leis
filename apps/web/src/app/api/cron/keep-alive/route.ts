@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
+import { buildEndpointUrl } from '@/lib/api-url';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const base = (
-    process.env.NEXT_PUBLIC_API_URL ||
-    'https://luizianne-leis.onrender.com'
-  ).replace(/\/+$/, '');
-
   try {
-    const res = await fetch(`${base}/api/admin/auto-sync`, {
+    const res = await fetch(buildEndpointUrl('/admin/auto-sync'), {
       cache: 'no-store',
       signal: AbortSignal.timeout(9_000),
     });

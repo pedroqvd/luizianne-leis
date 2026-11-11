@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { ALL_TABS, type TabSlug } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { buildEndpointUrl } from '@/lib/api-url';
 
 interface Result {
   id: string;
@@ -118,14 +119,8 @@ export function CommandPalette({ isAdmin = false, allowedTabs = null }: Props) {
             headers['Authorization'] = `Bearer ${session.access_token}`;
           }
 
-          const base = (
-            process.env.NEXT_PUBLIC_API_URL ||
-            (process.env.NODE_ENV === 'production'
-              ? 'https://luizianne-leis.onrender.com'
-              : 'http://localhost:8000')
-          ).replace(/\/+$/, '');
           const res = await fetch(
-            `${base}/api/propositions?search=${encodeURIComponent(query)}&limit=5`,
+            buildEndpointUrl(`/propositions?search=${encodeURIComponent(query)}&limit=5`),
             { signal: controller.signal, headers },
           );
           if (!res.ok) return;

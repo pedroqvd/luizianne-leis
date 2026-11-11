@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
+import { buildEndpointUrl } from '@/lib/api-url';
 
 interface SyncCounts {
   editais?: number;
@@ -22,17 +23,11 @@ export function AutoSyncBanner({ initialEmpty }: { initialEmpty: boolean }) {
     if (!initialEmpty) return;
 
     let cancelled = false;
-    const base = (
-      process.env.NEXT_PUBLIC_API_URL ||
-      (process.env.NODE_ENV === 'production'
-        ? 'https://luizianne-leis.onrender.com'
-        : 'http://localhost:8000')
-    ).replace(/\/+$/, '');
 
     async function poll() {
       if (cancelled) return;
       try {
-        const res = await fetch(`${base}/api/admin/auto-sync`, {
+        const res = await fetch(buildEndpointUrl('/admin/auto-sync'), {
           cache: 'no-store',
         });
         if (res.ok) {

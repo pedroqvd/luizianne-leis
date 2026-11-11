@@ -1,11 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 
-const BASE = (
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'https://luizianne-leis.onrender.com'
-    : 'http://localhost:8000')
-).replace(/\/+$/, '');
+export { getApiBaseUrl, buildEndpointUrl } from './api-url';
+import { buildEndpointUrl } from './api-url';
+
 const TIMEOUT_MS = 9_000; // must stay below Vercel Hobby's 10s function limit
 
 /**
@@ -52,7 +49,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${BASE}/api${path}`, {
+    const res = await fetch(buildEndpointUrl(path), {
       ...init,
       headers,
       cache: 'no-store',

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { buildEndpointUrl } from '@/lib/api-url';
 
 interface Event {
   type: string;
@@ -27,15 +28,9 @@ export function RealtimeBadge() {
 
     async function connect() {
       if (cancelled) return;
-      const base = (
-        process.env.NEXT_PUBLIC_API_URL ||
-        (process.env.NODE_ENV === 'production'
-          ? 'https://luizianne-leis.onrender.com'
-          : 'http://localhost:8000')
-      ).replace(/\/+$/, '');
 
       // Aciona silenciosamente o heartbeat / smart auto-sync da API ao abrir qualquer aba
-      fetch(`${base}/api/admin/auto-sync`, { cache: 'no-store' }).catch(() => undefined);
+      fetch(buildEndpointUrl('/admin/auto-sync'), { cache: 'no-store' }).catch(() => undefined);
 
       let tokenParam = '';
       try {
@@ -50,7 +45,7 @@ export function RealtimeBadge() {
 
       if (cancelled || !tokenParam) return;
 
-      es = new EventSource(`${base}/api/notifications/stream${tokenParam}`);
+      es = new EventSource(`${buildEndpointUrl('/notifications/stream')}${tokenParam}`);
 
       const handler = (msg: MessageEvent) => {
         if (cancelled) return;
@@ -77,13 +72,7 @@ export function RealtimeBadge() {
 
     void connect();
     const keepAliveInterval = setInterval(() => {
-      const base = (
-        process.env.NEXT_PUBLIC_API_URL ||
-        (process.env.NODE_ENV === 'production'
-          ? 'https://luizianne-leis.onrender.com'
-          : 'http://localhost:8000')
-      ).replace(/\/+$/, '');
-      fetch(`${base}/api/admin/auto-sync`, { cache: 'no-store' }).catch(() => undefined);
+      fetch(buildEndpointUrl('/admin/auto-sync'), { cache: 'no-store' }).catch(() => undefined);
     }, 8 * 60 * 1000);
 
     return () => {
