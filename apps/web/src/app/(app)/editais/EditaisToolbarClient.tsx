@@ -5,9 +5,22 @@ import { useRouter } from 'next/navigation';
 import {
   recomputeEditalMatchesAction,
   createStrategicEdital,
-  ALLOWED_DEMAND_CATEGORIES,
 } from '@/app/(app)/actions/articulacao';
 import { RefreshCw, Plus, Sparkles, X, CheckCircle2 } from 'lucide-react';
+
+const ALLOWED_DEMAND_CATEGORIES = [
+  'saúde',
+  'educação',
+  'infraestrutura',
+  'recursos hídricos',
+  'agricultura',
+  'assistência social',
+  'habitação',
+  'cultura e esporte',
+  'meio ambiente',
+  'segurança pública',
+  'desenvolvimento regional',
+] as const;
 
 export function EditaisToolbarClient() {
   const router = useRouter();

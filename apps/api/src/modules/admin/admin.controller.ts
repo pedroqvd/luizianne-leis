@@ -2,12 +2,16 @@ import {
   BadRequestException,
   Controller,
   HttpCode,
+  Inject,
+  OnApplicationBootstrap,
   Post,
   Query,
   Logger,
   UseGuards,
 } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Pool } from 'pg';
+import { PG_POOL } from '../../infra/database/database.module';
 import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
 import { AbsenceTrackerService } from '../ingestion/absence-tracker.service';
@@ -15,6 +19,9 @@ import { LawsAlertService } from '../ingestion/laws-alert.service';
 import { ClassifierService } from '../nlp/classifier.service';
 import { EditaisIngestion } from '../editais/editais.ingestion';
 import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
+import { CeapIngestion } from '../ceap/ceap.ingestion';
+import { DiscursosIngestion } from '../discursos/discursos.ingestion';
+import { FrentesIngestion } from '../frentes/frentes.ingestion';
 import { AdminGuard } from './admin.guard';
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,17 +37,56 @@ function assertValidIsoDate(val: string | undefined, paramName: string): void {
 @Public()
 @UseGuards(AdminGuard)
 @Controller('admin')
-export class AdminController {
+export class AdminController implements OnApplicationBootstrap {
   private readonly logger = new Logger(AdminController.name);
 
   constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
     private readonly queue: IngestionQueue,
     private readonly classifier: ClassifierService,
     private readonly editaisIngestion: EditaisIngestion,
     private readonly emendasIngestion: EmendasOrcIngestion,
+    private readonly ceapIngestion: CeapIngestion,
+    private readonly discursosIngestion: DiscursosIngestion,
+    private readonly frentesIngestion: FrentesIngestion,
     private readonly absence: AbsenceTrackerService,
     private readonly laws: LawsAlertService,
   ) {}
+
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV === 'test') return;
+    setTimeout(() => {
+      this.autoBootstrapEmptyDatabase().catch((err) => {
+        this.logger.warn(`Auto-bootstrap check skipped: ${err.message}`);
+      });
+    }, 5_000);
+  }
+
+  private async autoBootstrapEmptyDatabase() {
+    const { rows: editalRows } = await this.pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM editais',
+    );
+    if ((editalRows[0]?.cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty editais table detected — starting initial PNCP sync in background...');
+      this.editaisIngestion.ingest().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] Editais initial sync failed: ${e.message}`),
+      );
+    }
+
+    const { rows: propRows } = await this.pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM propositions',
+    );
+    if ((propRows[0]?.cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty propositions table detected — starting initial Câmara/Emendas/CEAP/Discursos/Frentes sync in background...');
+      await this.queue.enqueueFullSync().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] Full sync failed: ${e.message}`),
+      );
+      this.frentesIngestion.sync().catch(() => undefined);
+      this.discursosIngestion.syncRecent().catch(() => undefined);
+      this.ceapIngestion.syncRecent().catch(() => undefined);
+      this.emendasIngestion.ingest().catch(() => undefined);
+    }
+  }
 
   @Post('ingest')
   async triggerIngest() {

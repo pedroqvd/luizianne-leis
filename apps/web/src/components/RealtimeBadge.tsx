@@ -27,7 +27,12 @@ export function RealtimeBadge() {
 
     async function connect() {
       if (cancelled) return;
-      const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+      const base = (
+        process.env.NEXT_PUBLIC_API_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://luizianne-leis.onrender.com'
+          : 'http://localhost:8000')
+      ).replace(/\/+$/, '');
 
       let tokenParam = '';
       try {

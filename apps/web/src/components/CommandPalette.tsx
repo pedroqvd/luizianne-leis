@@ -118,7 +118,12 @@ export function CommandPalette({ isAdmin = false, allowedTabs = null }: Props) {
             headers['Authorization'] = `Bearer ${session.access_token}`;
           }
 
-          const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+          const base = (
+            process.env.NEXT_PUBLIC_API_URL ||
+            (process.env.NODE_ENV === 'production'
+              ? 'https://luizianne-leis.onrender.com'
+              : 'http://localhost:8000')
+          ).replace(/\/+$/, '');
           const res = await fetch(
             `${base}/api/propositions?search=${encodeURIComponent(query)}&limit=5`,
             { signal: controller.signal, headers },

@@ -10,10 +10,23 @@ import {
   deleteAuthorityDemand,
   upsertEditalTracking,
   recomputeEditalMatchesAction,
-  ALLOWED_DEMAND_CATEGORIES,
   type AuthorityInput,
   type AuthorityDemandInput,
 } from '@/app/(app)/actions/articulacao';
+
+const ALLOWED_DEMAND_CATEGORIES = [
+  'saúde',
+  'educação',
+  'infraestrutura',
+  'recursos hídricos',
+  'agricultura',
+  'assistência social',
+  'habitação',
+  'cultura e esporte',
+  'meio ambiente',
+  'segurança pública',
+  'desenvolvimento regional',
+] as const;
 import {
   Handshake,
   Plus,

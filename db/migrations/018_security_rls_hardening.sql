@@ -112,42 +112,47 @@ AS $$
 $$;
 
 -- ── 4. Habilitar Row-Level Security (RLS) em TODAS as Tabelas ──────────────
-ALTER TABLE app_users                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notification_areas        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_subscriptions        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_tab_permissions      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE presence_records          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE demands                   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ceara_municipalities      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE municipal_authorities     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE authority_demands         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE edital_authority_tracking ENABLE ROW LEVEL SECURITY;
-ALTER TABLE security_audit_logs       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE outbox_events             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE system_events             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deputies                  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE propositions              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proposition_authors       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proposition_proceedings   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proposition_versions      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE votes                     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories                ENABLE ROW LEVEL SECURITY;
-ALTER TABLE proposition_categories    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE commissions               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deputy_commissions        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE editais                   ENABLE ROW LEVEL SECURITY;
-ALTER TABLE emendas_orcamentarias     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ceap_despesas             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE discursos                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE frentes_parlamentares     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE frente_membros            ENABLE ROW LEVEL SECURITY;
-
--- Protege schema_migrations caso já exista
 DO $$
+DECLARE
+  tbl TEXT;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'schema_migrations') THEN
-    EXECUTE 'ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY';
-  END IF;
+  FOREACH tbl IN ARRAY ARRAY[
+    'app_users',
+    'notification_areas',
+    'user_subscriptions',
+    'user_tab_permissions',
+    'presence_records',
+    'demands',
+    'ceara_municipalities',
+    'municipal_authorities',
+    'authority_demands',
+    'edital_authority_tracking',
+    'security_audit_logs',
+    'outbox_events',
+    'system_events',
+    'deputies',
+    'propositions',
+    'proposition_authors',
+    'proceedings',
+    'proposition_versions',
+    'votes',
+    'categories',
+    'proposition_categories',
+    'commissions',
+    'deputy_commissions',
+    'editais',
+    'emendas_orcamentarias',
+    'ceap_despesas',
+    'discursos',
+    'frentes_parlamentares',
+    'frente_membros',
+    'schema_migrations'
+  ]
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = tbl) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
+    END IF;
+  END LOOP;
 END $$;
 
 -- ── 5. Políticas de RLS para Tabelas Sensíveis / Gestão Interna ────────────
@@ -300,7 +305,7 @@ BEGIN
     'deputies',
     'propositions',
     'proposition_authors',
-    'proposition_proceedings',
+    'proceedings',
     'proposition_versions',
     'votes',
     'categories',
@@ -315,11 +320,13 @@ BEGIN
     'frente_membros'
   ]
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS policy_%I_auth_read ON public.%I', tbl, tbl);
-    EXECUTE format(
-      'CREATE POLICY policy_%I_auth_read ON public.%I FOR SELECT USING (public.current_auth_uid() IS NOT NULL)',
-      tbl, tbl
-    );
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = tbl) THEN
+      EXECUTE format('DROP POLICY IF EXISTS policy_%I_auth_read ON public.%I', tbl, tbl);
+      EXECUTE format(
+        'CREATE POLICY policy_%I_auth_read ON public.%I FOR SELECT USING (public.current_auth_uid() IS NOT NULL)',
+        tbl, tbl
+      );
+    END IF;
   END LOOP;
 END $$;
 

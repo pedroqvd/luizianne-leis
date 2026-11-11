@@ -41,14 +41,26 @@ export default async function ArticulacaoPage() {
       .order('match_score', { ascending: false })
       .limit(1000),
     admin
-      .from('budget_amendments')
+      .from('emendas_orcamentarias')
       .select(
-        'id, code, year, locality, function_name, subfunction_name, action_name, value_empenhado, value_pago',
+        'id, codigo_emenda, ano, municipio, funcao, descricao_funcao, subfuncao, descricao_subfuncao, descricao, valor_empenhado, valor_pago',
       )
-      .order('year', { ascending: false })
+      .order('ano', { ascending: false })
       .limit(500),
     admin.from('app_users').select('id, name, email').order('name'),
   ]);
+
+  const mappedAmendments = (amendments ?? []).map((a: any) => ({
+    id: Number(a.id),
+    code: a.codigo_emenda ?? String(a.id),
+    year: Number(a.ano ?? new Date().getFullYear()),
+    locality: a.municipio ?? null,
+    function_name: a.descricao_funcao ?? a.funcao ?? null,
+    subfunction_name: a.descricao_subfuncao ?? a.subfuncao ?? null,
+    action_name: a.descricao ?? null,
+    value_empenhado: Number(a.valor_empenhado ?? 0),
+    value_pago: Number(a.valor_pago ?? 0),
+  }));
 
   return (
     <ArticulacaoClient
@@ -56,7 +68,7 @@ export default async function ArticulacaoPage() {
       initialAuthorities={authorities ?? []}
       initialDemands={demands ?? []}
       initialTrackings={trackings ?? []}
-      amendments={amendments ?? []}
+      amendments={mappedAmendments}
       members={members ?? []}
     />
   );

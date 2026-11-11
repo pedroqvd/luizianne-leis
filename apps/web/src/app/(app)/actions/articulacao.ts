@@ -5,7 +5,7 @@ import { requireTabAccess, logSecurityAudit } from '@/lib/auth-guard';
 import { api } from '@/lib/api';
 import { revalidatePath } from 'next/cache';
 
-export const ALLOWED_AUTHORITY_ROLES = [
+const ALLOWED_AUTHORITY_ROLES = [
   'prefeito',
   'vice_prefeito',
   'secretario_municipal',
@@ -13,14 +13,14 @@ export const ALLOWED_AUTHORITY_ROLES = [
   'vereador_aliado',
 ] as const;
 
-export const ALLOWED_ALLIED_STATUSES = [
+const ALLOWED_ALLIED_STATUSES = [
   'aliado_base_elmano',
   'parceiro_estrategico',
   'em_articulacao',
   'institucional',
 ] as const;
 
-export const ALLOWED_DEMAND_CATEGORIES = [
+const ALLOWED_DEMAND_CATEGORIES = [
   'saúde',
   'educação',
   'infraestrutura',
@@ -34,7 +34,7 @@ export const ALLOWED_DEMAND_CATEGORIES = [
   'desenvolvimento regional',
 ] as const;
 
-export const ALLOWED_DEMAND_STATUSES = [
+const ALLOWED_DEMAND_STATUSES = [
   'mapeada',
   'em_analise',
   'vinculada_edital',
@@ -44,9 +44,9 @@ export const ALLOWED_DEMAND_STATUSES = [
   'arquivada',
 ] as const;
 
-export const ALLOWED_DEMAND_URGENCIES = ['baixa', 'media', 'alta', 'critica'] as const;
+const ALLOWED_DEMAND_URGENCIES = ['baixa', 'media', 'alta', 'critica'] as const;
 
-export const ALLOWED_TRACKING_STATUSES = [
+const ALLOWED_TRACKING_STATUSES = [
   'sugerido',
   'em_avaliacao',
   'prefeito_notificado',

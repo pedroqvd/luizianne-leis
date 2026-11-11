@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
-const TIMEOUT_MS = 8_000; // must stay below Vercel Hobby's 10s function limit
+const BASE = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://luizianne-leis.onrender.com'
+    : 'http://localhost:8000')
+).replace(/\/+$/, '');
+const TIMEOUT_MS = 9_000; // must stay below Vercel Hobby's 10s function limit
 
 /**
  * Frontend API client com Bearer token automático e erros tipados.
