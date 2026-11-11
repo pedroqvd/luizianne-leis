@@ -58,6 +58,10 @@ export class EditaisService {
     return this.cache.wrap('editais:ministries', 600, () => this.repo.ministries());
   }
 
+  async ministriesSummary() {
+    return this.cache.wrap('editais:by-ministerio', 180, () => this.repo.ministriesSummary());
+  }
+
   async categories() {
     return this.cache.wrap('editais:categories', 300, () => this.repo.categories());
   }

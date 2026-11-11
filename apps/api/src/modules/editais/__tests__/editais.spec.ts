@@ -45,7 +45,9 @@ describe('PNCP Client & Deep Enrichment', () => {
     );
 
     const internal = pncpToInternal(item);
-    expect(internal.ministerio).toBe('MINISTERIO DA SAUDE');
+    expect(internal.ministerio).toBe('Ministério da Saúde');
+    expect(internal.ministerio_slug).toBe('saude');
+    expect(internal.ministerio_sigla).toBe('MS');
     expect(internal.unidade_nome).toBe('SUPERINTENDENCIA ESTADUAL DO MS NO CEARA');
     expect(internal.categoria_tematica).toBe('saúde');
     expect(internal.elegivel_prefeituras).toBe(true);
@@ -87,6 +89,12 @@ describe('PNCP Client & Deep Enrichment', () => {
     expect(elig.publico_alvo).toEqual(
       expect.arrayContaining(['prefeituras', 'adesao_ata_srp']),
     );
+
+    const fndeInternal = pncpToInternal(srpItem);
+    expect(fndeInternal.ministerio).toBe('Ministério da Educação');
+    expect(fndeInternal.ministerio_slug).toBe('educacao');
+    expect(fndeInternal.ministerio_sigla).toBe('MEC');
+    expect(fndeInternal.autarquia).toBe('FNDE — Fundo Nacional de Desenvolvimento da Educação');
   });
 });
 

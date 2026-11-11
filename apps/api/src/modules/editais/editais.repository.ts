@@ -1,9 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
+import { FEDERAL_MINISTRIES_CATALOG, type MinisterioDef } from './federal-ministries.catalog';
 
 export interface EditalFilter {
   ministerio?: string;
+  ministerioSlug?: string;
+  ministerioSigla?: string;
+  autarquia?: string;
   situacao?: string;
   modalidade?: string;
   uf?: string;
@@ -14,6 +18,22 @@ export interface EditalFilter {
   encerrandoEm?: number; // dias
   limit?: number;
   offset?: number;
+}
+
+export interface MinistrySummaryItem {
+  slug: string;
+  sigla: string;
+  nome: string;
+  editais_abertos: number;
+  editais_total: number;
+  valor_abertos: number;
+  autarquias: Array<{
+    sigla?: string;
+    nome: string;
+    editais_abertos: number;
+    editais_total: number;
+    valor_abertos: number;
+  }>;
 }
 
 @Injectable()
@@ -37,7 +57,7 @@ export class EditaisRepository {
 
       for (const row of chunk) {
         const tuple: string[] = [];
-        for (let k = 0; k < 35; k++) {
+        for (let k = 0; k < 38; k++) {
           tuple.push(`$${p++}`);
         }
         tuple.push('NOW()');
@@ -48,6 +68,9 @@ export class EditaisRepository {
           row.titulo,
           row.orgao,
           row.ministerio,
+          row.ministerio_slug ?? null,
+          row.ministerio_sigla ?? null,
+          row.autarquia ?? null,
           row.orgao_superior ?? row.ministerio ?? row.orgao,
           row.numero,
           row.objeto,
@@ -84,7 +107,8 @@ export class EditaisRepository {
 
       const { rowCount } = await this.pool.query(
         `INSERT INTO editais (
-          pncp_id, titulo, orgao, ministerio, orgao_superior, numero, objeto,
+          pncp_id, titulo, orgao, ministerio, ministerio_slug, ministerio_sigla, autarquia,
+          orgao_superior, numero, objeto,
           modalidade, modalidade_codigo, cnpj_orgao, poder, esfera,
           uf, municipio, unidade_codigo, unidade_nome,
           valor_estimado, data_abertura, data_encerramento,
@@ -99,6 +123,9 @@ export class EditaisRepository {
           titulo               = EXCLUDED.titulo,
           orgao                = EXCLUDED.orgao,
           ministerio           = EXCLUDED.ministerio,
+          ministerio_slug      = COALESCE(EXCLUDED.ministerio_slug, editais.ministerio_slug),
+          ministerio_sigla     = COALESCE(EXCLUDED.ministerio_sigla, editais.ministerio_sigla),
+          autarquia            = COALESCE(EXCLUDED.autarquia, editais.autarquia),
           orgao_superior       = EXCLUDED.orgao_superior,
           situacao             = EXCLUDED.situacao,
           data_encerramento    = EXCLUDED.data_encerramento,
@@ -164,6 +191,18 @@ export class EditaisRepository {
       conditions.push(`e.situacao = $${i++}`);
       params.push(filter.situacao);
     }
+    if (filter.ministerioSlug) {
+      conditions.push(`e.ministerio_slug = $${i++}`);
+      params.push(filter.ministerioSlug);
+    }
+    if (filter.ministerioSigla) {
+      conditions.push(`e.ministerio_sigla = $${i++}`);
+      params.push(filter.ministerioSigla.toUpperCase());
+    }
+    if (filter.autarquia) {
+      conditions.push(`e.autarquia ILIKE $${i++}`);
+      params.push(`%${filter.autarquia}%`);
+    }
     if (filter.ministerio) {
       conditions.push(`(e.ministerio ILIKE $${i++} OR e.orgao ILIKE $${i++})`);
       params.push(`%${filter.ministerio}%`, `%${filter.ministerio}%`);
@@ -217,8 +256,9 @@ export class EditaisRepository {
     const [{ rows }, { rows: cnt }] = await Promise.all([
       this.pool.query(
         `SELECT
-           e.id, e.pncp_id, e.titulo, e.orgao, e.ministerio, e.orgao_superior,
-           e.numero, e.objeto, e.modalidade, e.valor_estimado,
+           e.id, e.pncp_id, e.titulo, e.orgao, e.ministerio,
+           e.ministerio_slug, e.ministerio_sigla, e.autarquia,
+           e.orgao_superior, e.numero, e.objeto, e.modalidade, e.valor_estimado,
            e.data_abertura, e.data_encerramento,
            e.data_proposta_inicio, e.data_proposta_fim, e.data_publicacao,
            e.situacao, e.url_fonte, e.url_edital,
@@ -312,5 +352,113 @@ export class EditaisRepository {
         ORDER BY count DESC, categoria_tematica ASC`,
     );
     return rows;
+  }
+
+  async ministriesSummary(): Promise<MinistrySummaryItem[]> {
+    const { rows } = await this.pool.query(`
+      SELECT
+        COALESCE(ministerio_slug, 'outros')                                                  AS slug,
+        COALESCE(ministerio, 'Outros Órgãos')                                                AS nome,
+        COALESCE(ministerio_sigla, 'OUT')                                                    AS sigla,
+        COALESCE(autarquia, '')                                                              AS autarquia,
+        COUNT(*)::int                                                                        AS editais_total,
+        COUNT(*) FILTER (WHERE situacao = 'aberto')::int                                     AS editais_abertos,
+        COALESCE(SUM(valor_estimado) FILTER (WHERE situacao = 'aberto'), 0)::numeric(20,2)   AS valor_abertos
+      FROM editais
+      GROUP BY ministerio_slug, ministerio, ministerio_sigla, autarquia
+      ORDER BY editais_abertos DESC, editais_total DESC
+    `);
+
+    // Mapa dos ministérios do catálogo
+    const catalogMap = new Map<string, MinistrySummaryItem>();
+    for (const catMin of FEDERAL_MINISTRIES_CATALOG) {
+      catalogMap.set(catMin.slug, {
+        slug: catMin.slug,
+        sigla: catMin.sigla,
+        nome: catMin.nome,
+        editais_abertos: 0,
+        editais_total: 0,
+        valor_abertos: 0,
+        autarquias: catMin.autarquias.map((a) => ({
+          sigla: a.sigla,
+          nome: a.nome,
+          editais_abertos: 0,
+          editais_total: 0,
+          valor_abertos: 0,
+        })),
+      });
+    }
+
+    // Processa os dados reais da base
+    for (const r of rows) {
+      let entry = catalogMap.get(r.slug);
+      if (!entry) {
+        entry = {
+          slug: r.slug,
+          sigla: r.sigla,
+          nome: r.nome,
+          editais_abertos: 0,
+          editais_total: 0,
+          valor_abertos: 0,
+          autarquias: [],
+        };
+        catalogMap.set(r.slug, entry);
+      }
+
+      const abertos = Number(r.editais_abertos ?? 0);
+      const total = Number(r.editais_total ?? 0);
+      const valor = Number(r.valor_abertos ?? 0);
+
+      entry.editais_abertos += abertos;
+      entry.editais_total += total;
+      entry.valor_abertos += valor;
+
+      if (r.autarquia && r.autarquia.trim().length > 0) {
+        const autarquiaClean = r.autarquia.trim();
+        const existingAut = entry.autarquias.find(
+          (a) =>
+            autarquiaClean.toLowerCase().includes(a.nome.toLowerCase()) ||
+            (a.sigla && autarquiaClean.toLowerCase().includes(a.sigla.toLowerCase())),
+        );
+
+        if (existingAut) {
+          existingAut.editais_abertos += abertos;
+          existingAut.editais_total += total;
+          existingAut.valor_abertos += valor;
+        } else {
+          entry.autarquias.push({
+            nome: autarquiaClean,
+            editais_abertos: abertos,
+            editais_total: total,
+            valor_abertos: valor,
+          });
+        }
+      }
+    }
+
+    const result = Array.from(catalogMap.values());
+
+    // Ordenação: ministérios com editais abertos primeiro, depois por total, depois por nome
+    result.sort((a, b) => {
+      if (b.editais_abertos !== a.editais_abertos) {
+        return b.editais_abertos - a.editais_abertos;
+      }
+      if (b.editais_total !== a.editais_total) {
+        return b.editais_total - a.editais_total;
+      }
+      return a.nome.localeCompare(b.nome);
+    });
+
+    // Ordena autarquias de cada ministério com editais abertos no topo
+    for (const m of result) {
+      m.autarquias.sort((a, b) => {
+        if (b.editais_abertos !== a.editais_abertos) {
+          return b.editais_abertos - a.editais_abertos;
+        }
+        return a.nome.localeCompare(b.nome);
+      });
+    }
+
+    return result;
   }
 }

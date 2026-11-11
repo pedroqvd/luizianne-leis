@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
+import { resolveFederalMinistryAndAutarchy } from './federal-ministries.catalog';
 
 /**
  * Cliente para a API pública do PNCP (Portal Nacional de Contratações Públicas).
@@ -562,15 +563,24 @@ export function pncpToInternal(item: PncpItem) {
       : item.amparoLegal.nome
     : null;
 
+  const resolved = resolveFederalMinistryAndAutarchy({
+    razaoSocial: orgaoRazao,
+    nomeUnidade: unidadeNome ?? undefined,
+    objeto: item.objetoCompra ?? undefined,
+    esfera: item.orgaoEntidade?.esferaId,
+  });
+
   return {
     pncp_id: item.numeroControlePNCP,
     titulo:
       item.objetoCompra?.slice(0, 200) ??
       `${item.modalidadeNome} ${item.numeroCompra}/${item.anoCompra}`,
     orgao: orgaoRazao,
-    // FIX: ministerio mapeia para a Razão Social do Órgão/Entidade Superior (e não a sub-unidade/UASG)
-    ministerio: orgaoRazao,
-    orgao_superior: orgaoRazao,
+    ministerio: resolved.ministerio,
+    ministerio_slug: resolved.ministerio_slug,
+    ministerio_sigla: resolved.ministerio_sigla,
+    autarquia: resolved.autarquia,
+    orgao_superior: resolved.ministerio,
     numero: `${item.numeroCompra}/${item.anoCompra}`,
     objeto: item.objetoCompra ?? null,
     modalidade: item.modalidadeNome,

@@ -17,6 +17,11 @@ export class EditaisController {
     return this.service.ministries();
   }
 
+  @Get('by-ministerio')
+  byMinisterio() {
+    return this.service.ministriesSummary();
+  }
+
   @Get('categories')
   categories() {
     return this.service.categories();
@@ -33,6 +38,9 @@ export class EditaisController {
   @Get()
   @ApiQuery({ name: 'situacao',            required: false })
   @ApiQuery({ name: 'ministerio',          required: false })
+  @ApiQuery({ name: 'ministerioSlug',      required: false })
+  @ApiQuery({ name: 'ministerioSigla',     required: false })
+  @ApiQuery({ name: 'autarquia',           required: false })
   @ApiQuery({ name: 'modalidade',          required: false })
   @ApiQuery({ name: 'uf',                  required: false })
   @ApiQuery({ name: 'categoria',           required: false })
@@ -45,6 +53,9 @@ export class EditaisController {
   list(
     @Query('situacao')            situacao?: string,
     @Query('ministerio')          ministerio?: string,
+    @Query('ministerioSlug')      ministerioSlug?: string,
+    @Query('ministerioSigla')     ministerioSigla?: string,
+    @Query('autarquia')           autarquia?: string,
     @Query('modalidade')          modalidade?: string,
     @Query('uf')                  uf?: string,
     @Query('categoria')           categoria?: string,
@@ -58,6 +69,9 @@ export class EditaisController {
     return this.service.list({
       situacao,
       ministerio,
+      ministerioSlug,
+      ministerioSigla,
+      autarquia,
       modalidade,
       uf,
       categoria,

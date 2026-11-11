@@ -46,6 +46,9 @@ interface EditalDetail {
   titulo: string;
   orgao: string;
   ministerio: string;
+  ministerio_slug?: string | null;
+  ministerio_sigla?: string | null;
+  autarquia?: string | null;
   orgao_superior?: string | null;
   numero: string | null;
   objeto: string | null;
@@ -383,12 +386,26 @@ export default async function EditalDetailPage({ params }: { params: { id: strin
               <Building2 className="w-4 h-4 text-slate-400" /> Órgão & Unidade Executora
             </div>
             <div className="space-y-1.5 text-xs">
-              <p className="text-sm font-bold text-slate-900">
-                {edital.ministerio || edital.orgao}
-              </p>
-              {edital.unidade_nome && edital.unidade_nome !== edital.ministerio && (
-                <p className="text-slate-600">Unidade/UASG: {edital.unidade_nome}</p>
+              <div className="flex items-center gap-2">
+                {edital.ministerio_sigla && (
+                  <span className="text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded">
+                    {edital.ministerio_sigla}
+                  </span>
+                )}
+                <p className="text-sm font-bold text-slate-900">
+                  {edital.ministerio || edital.orgao}
+                </p>
+              </div>
+              {edital.autarquia && (
+                <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 p-2 rounded-lg">
+                  🏢 Autarquia / Fundação: <strong>{edital.autarquia}</strong>
+                </div>
               )}
+              {edital.unidade_nome &&
+                edital.unidade_nome !== edital.ministerio &&
+                edital.unidade_nome !== edital.autarquia && (
+                  <p className="text-slate-600">Unidade/UASG: {edital.unidade_nome}</p>
+                )}
               {edital.cnpj_orgao && (
                 <p className="text-slate-400 font-mono">CNPJ: {edital.cnpj_orgao}</p>
               )}
