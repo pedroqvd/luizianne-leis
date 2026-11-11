@@ -35,7 +35,7 @@ export class OutboxWorker {
       let dispatched = 0;
       for (const row of rows) {
         try {
-          this.events.emit({
+          await this.events.emit({
             type: row.type,
             aggregateType: row.aggregate_type,
             aggregateId: row.aggregate_id,

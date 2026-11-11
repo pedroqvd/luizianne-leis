@@ -158,7 +158,6 @@ export default async function EquipePage() {
                           userId={m.id}
                           areaId={a.id}
                           enabled={isEnabled(m.id, a.id)}
-                          isSelf={m.id === user.id}
                         />
                       </td>
                     ))}

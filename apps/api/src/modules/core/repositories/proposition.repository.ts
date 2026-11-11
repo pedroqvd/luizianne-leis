@@ -109,7 +109,10 @@ export class PropositionRepository {
     role?: AuthorRole,
     limit = 100,
   ): Promise<Proposition[]> {
-    const params: any[] = [deputyId, limit];
+    const safeLimit = Number.isFinite(Number(limit))
+      ? Math.min(Math.max(Math.floor(Number(limit)), 1), 200)
+      : 100;
+    const params: any[] = [deputyId, safeLimit];
     const roleClause = role ? `AND pa.role = $3` : '';
     if (role) params.push(role);
 

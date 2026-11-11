@@ -1,23 +1,17 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
+import { CacheService } from '../../infra/cache/cache.service';
 
 /**
  * Classificador heurístico (lexical) para classificar proposições por área temática.
- *
- * FIX #14 (MÉDIO): Melhorias no classificador:
- *   - Termos agora usam word boundaries (regex) em vez de substring match
- *   - Score mínimo threshold para evitar classificações de baixa confiança
- *   - Fallback 'outros' com score 0 (baixa confiança) em vez de 1.0
- *   - Termos expandidos para maior cobertura
  */
 @Injectable()
 export class ClassifierService {
   private readonly logger = new Logger(ClassifierService.name);
   private readonly classifierName = 'heuristic-v2';
-  private readonly minScore = 0.15; // FIX #14: Threshold mínimo para classificação
+  private readonly minScore = 0.15;
 
-  // Léxico por categoria — termos como regex patterns com word boundaries
   private readonly lexicon: Record<string, RegExp[]> = {
     saude:          this.buildPatterns(['saúde', 'saude', 'sus\\b', 'hospital', 'medicamento', 'vacina', 'atenção básica', 'enfermagem', 'sanitário', 'sanitária', 'epidemia', 'pandemia', 'ubs\\b', 'farmácia']),
     educacao:       this.buildPatterns(['educação', 'educacao', 'escola', 'ensino', 'professor', 'universidade', 'fundeb', 'aluno', 'creche', 'pedagog', 'docente', 'enem\\b', 'letramento']),
@@ -30,16 +24,15 @@ export class ClassifierService {
     infraestrutura: this.buildPatterns(['rodovia', 'ferrovia', 'energia', 'telecomunicação', 'telecomunicacao', 'obra pública', 'porto\\b', 'aeroporto', 'saneamento básico', 'eletrificação']),
   };
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly cache?: CacheService,
+  ) {}
 
   private buildPatterns(terms: string[]): RegExp[] {
     return terms.map((t) => new RegExp(`\\b${t}`, 'i'));
   }
 
-  /**
-   * Classifica um texto retornando scores [0, 1] por categoria.
-   * FIX #14: Agora usa regex com word boundaries e threshold mínimo.
-   */
   classify(text: string): Array<{ slug: string; score: number }> {
     const norm = (text ?? '').toLowerCase();
     if (!norm || norm.length < 10) return [{ slug: 'outros', score: 0 }];
@@ -54,19 +47,14 @@ export class ClassifierService {
       }
     }
 
-    // FIX #14: Fallback 'outros' com score 0 (baixa confiança)
     if (total === 0) return [{ slug: 'outros', score: 0 }];
 
     return Object.entries(counts)
       .map(([slug, c]) => ({ slug, score: Number((c / total).toFixed(4)) }))
-      .filter(({ score }) => score >= this.minScore) // FIX #14: threshold
+      .filter(({ score }) => score >= this.minScore)
       .sort((a, b) => b.score - a.score);
   }
 
-  /**
-   * Classifica e persiste de forma atômica para múltiplas proposições (Bulk Insert)
-   * FIX #1 (CRÍTICO): Evita problema de N+1 queries gerando I/O bloqueante.
-   */
   async classifyAndPersistBulk(propositions: Array<{ id: number; text: string }>): Promise<number> {
     const entries: Array<{ propId: number; slug: string; score: number }> = [];
 
@@ -79,7 +67,6 @@ export class ClassifierService {
 
     if (entries.length === 0) return 0;
 
-    // Build parameterized VALUES clauses safely
     const valueClauses: string[] = [];
     const params: any[] = [];
     let idx = 1;
@@ -106,10 +93,6 @@ export class ClassifierService {
     return this.classifyAndPersistBulk([{ id: propositionId, text }]);
   }
 
-  /**
-   * Reclassifica todas as proposições sem classificação (ou força reclassificação).
-   * Útil após atualizar o léxico.
-   */
   async reclassifyAll(force = false): Promise<{ processed: number }> {
     const sql = force
       ? `SELECT id, title, summary FROM propositions`
@@ -124,13 +107,21 @@ export class ClassifierService {
     let processed = 0;
     const batchSize = 1000;
     for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize).map(r => ({
+      const batch = rows.slice(i, i + batchSize).map((r) => ({
         id: r.id,
         text: `${r.title ?? ''} ${r.summary ?? ''}`,
       }));
       await this.classifyAndPersistBulk(batch);
       processed += batch.length;
     }
+
+    try {
+      await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY v_categories_breakdown');
+    } catch {
+      await this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown').catch(() => undefined);
+    }
+    await this.cache?.invalidate('analytics:*');
+
     this.logger.log(`reclassified ${processed} propositions`);
     return { processed };
   }

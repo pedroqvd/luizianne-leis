@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
-import { CamaraApiClient } from '../ingestion/camara-api.client';
-import { DeputyRepository } from '../core/repositories/deputy.repository';
+import { CoreModule } from '../core/core.module';
+import { IngestionModule } from '../ingestion/ingestion.module';
 import { CeapRepository } from './ceap.repository';
 import { CeapService } from './ceap.service';
 import { CeapIngestion } from './ceap.ingestion';
 import { CeapController } from './ceap.controller';
 
 @Module({
+  imports: [CoreModule, IngestionModule],
   controllers: [CeapController],
-  providers: [CamaraApiClient, DeputyRepository, CeapRepository, CeapService, CeapIngestion],
+  providers: [CeapRepository, CeapService, CeapIngestion],
   exports: [CeapService, CeapIngestion],
 })
 export class CeapModule {}

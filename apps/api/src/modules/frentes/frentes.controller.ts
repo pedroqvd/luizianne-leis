@@ -1,5 +1,6 @@
-import { Controller, Get, Post, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, HttpCode, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Public, AdminGuard } from '../../infra/auth';
 import { FrentesService } from './frentes.service';
 import { FrentesIngestion } from './frentes.ingestion';
 
@@ -22,6 +23,8 @@ export class FrentesController {
   }
 
   @Post('ingest')
+  @Public()
+  @UseGuards(AdminGuard)
   @HttpCode(202)
   async ingest() {
     const result = await this.ingestion.sync();

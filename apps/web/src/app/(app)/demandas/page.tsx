@@ -1,14 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { requireTabAccess } from '@/lib/auth-guard';
 import { DemandasClient } from './DemandasClient';
 
 export default async function DemandasPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  await requireTabAccess('demandas');
 
   const admin = createAdminClient();
   const [{ data: demands }, { data: members }] = await Promise.all([

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { CamaraApiClient } from '../ingestion/camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { DiscursosRepository } from './discursos.repository';
+import { CacheService } from '../../infra/cache/cache.service';
 
 @Injectable()
 export class DiscursosIngestion {
@@ -13,6 +14,7 @@ export class DiscursosIngestion {
     private readonly api: CamaraApiClient,
     private readonly deputies: DeputyRepository,
     private readonly repo: DiscursosRepository,
+    private readonly cache: CacheService,
   ) {}
 
   /** Sincroniza discursos recentes (último ano). Roda toda semana. */
@@ -56,6 +58,7 @@ export class DiscursosIngestion {
           errors++;
         }
       }
+      await this.cache.invalidate('discursos:*');
     } finally {
       this.running = false;
     }

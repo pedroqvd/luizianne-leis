@@ -7,10 +7,9 @@ interface Props {
   userId: string;
   areaId: number;
   enabled: boolean;
-  isSelf: boolean;
 }
 
-export function SubscriptionToggles({ userId, areaId, enabled: initial, isSelf }: Props) {
+export function SubscriptionToggles({ userId, areaId, enabled: initial }: Props) {
   const [enabled, setEnabled] = useState(initial);
   const [pending, startTransition] = useTransition();
 

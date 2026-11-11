@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
-import { StatCard } from '@/components/StatCard';
 import { ProductivityChart } from '@/components/ProductivityChart';
 import { TypeBreakdown } from '@/components/TypeBreakdown';
 import { ProductivityHeatmap } from '@/components/ProductivityHeatmap';

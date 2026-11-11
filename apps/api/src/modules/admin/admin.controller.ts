@@ -1,8 +1,12 @@
-import { Controller, Headers, HttpCode, Post, Query, Logger, UseGuards } from '@nestjs/common';
-
-function formatDate(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-}
+import {
+  BadRequestException,
+  Controller,
+  HttpCode,
+  Post,
+  Query,
+  Logger,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../infra/auth/public.decorator';
 import { IngestionQueue } from '../ingestion/ingestion.queue';
@@ -13,11 +17,22 @@ import { EditaisIngestion } from '../editais/editais.ingestion';
 import { EmendasOrcIngestion } from '../emendas-orc/emendas-orc.ingestion';
 import { AdminGuard } from './admin.guard';
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function assertValidIsoDate(val: string | undefined, paramName: string): void {
+  if (!val) return;
+  if (!ISO_DATE_RE.test(val) || Number.isNaN(Date.parse(val))) {
+    throw new BadRequestException(`Parâmetro '${paramName}' inválido. Use o formato YYYY-MM-DD.`);
+  }
+}
+
 @ApiTags('admin')
 @Public()
 @UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
     private readonly queue: IngestionQueue,
     private readonly classifier: ClassifierService,
@@ -52,7 +67,9 @@ export class AdminController {
 
   @Post('check-absences')
   async triggerAbsences(@Query('days') days?: string) {
-    const result = await this.absence.checkRecentAbsences(days ? Number(days) : 7);
+    const parsedDays = days ? Number(days) : 7;
+    const safeDays = Number.isFinite(parsedDays) ? Math.min(Math.max(Math.floor(parsedDays), 1), 365) : 7;
+    const result = await this.absence.checkRecentAbsences(safeDays);
     return { ok: true, ...result };
   }
 
@@ -64,9 +81,11 @@ export class AdminController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
+    assertValidIsoDate(from, 'from');
+    assertValidIsoDate(to, 'to');
+
     this.absence.checkAllHistoricalAbsences(from, to).catch((err) => {
-      const logger = new Logger('AdminController');
-      logger.error(`Historical absence backfill failed: ${err.message}`, err.stack);
+      this.logger.error(`Historical absence backfill failed: ${err.message}`, err.stack);
     });
     return {
       ok: true,

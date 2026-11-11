@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { FileText, ExternalLink, Search, Filter, ChevronLeft, ChevronRight, Download, Scale, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { FileText, ExternalLink, Search, Filter, ChevronLeft, ChevronRight, Download, Scale, TrendingUp, AlertCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 

@@ -4,6 +4,24 @@ import { Pool } from 'pg';
 import { EmailService } from '../notifications/email.service';
 import { PG_POOL } from '../../infra/database/database.module';
 
+function escapeHtml(raw?: string | null): string {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function parseDueDate(due: unknown): Date | null {
+  if (!due) return null;
+  if (due instanceof Date) return Number.isNaN(due.getTime()) ? null : due;
+  const iso = String(due).slice(0, 10);
+  const parsed = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 @Injectable()
 export class DemandsReminderService {
   private readonly logger = new Logger(DemandsReminderService.name);
@@ -33,14 +51,32 @@ export class DemandsReminderService {
         return;
       }
 
+      // Envia apenas para membros com acesso permitido à aba 'demandas'
       const { rows: recipients } = await this.pool.query(`
-        SELECT email FROM app_users WHERE email IS NOT NULL
+        SELECT u.email
+          FROM app_users u
+         WHERE u.email IS NOT NULL
+           AND (
+             u.role = 'admin'
+             OR NOT EXISTS (
+               SELECT 1
+                 FROM user_tab_permissions utp
+                WHERE utp.user_id = u.id
+                  AND utp.tab_slug = 'demandas'
+                  AND utp.enabled = false
+             )
+           )
       `);
 
       if (recipients.length === 0) return;
 
-      const overdue = pending.filter(d => d.due_date && new Date(d.due_date) < new Date());
-      const html = this.buildHtml(pending, overdue.length);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const overdue = pending.filter((d) => {
+        const dt = parseDueDate(d.due_date);
+        return dt !== null && dt < todayStart;
+      });
+      const html = this.buildHtml(pending, overdue.length, todayStart);
 
       for (const { email: to } of recipients) {
         try {
@@ -58,26 +94,34 @@ export class DemandsReminderService {
     }
   }
 
-  private buildHtml(demands: any[], overdueCount: number): string {
+  private buildHtml(demands: any[], overdueCount: number, todayStart: Date): string {
     const PRIORITY_LABEL: Record<string, string> = {
-      urgente: '🔴 Urgente', alta: '🟠 Alta', normal: '🟡 Normal', baixa: '⚪ Baixa',
+      urgente: '🔴 Urgente',
+      alta: '🟠 Alta',
+      normal: '🟡 Normal',
+      baixa: '⚪ Baixa',
     };
     const STATUS_LABEL: Record<string, string> = {
-      novo: 'Novo', em_andamento: 'Em andamento', aguardando: 'Aguardando',
+      novo: 'Novo',
+      em_andamento: 'Em andamento',
+      aguardando: 'Aguardando',
     };
 
-    const rows = demands.map(d => {
-      const dueTxt = d.due_date
-        ? new Date(d.due_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        : '—';
-      const isOverdue = d.due_date && new Date(d.due_date) < new Date();
-      return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${d.title}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${PRIORITY_LABEL[d.priority] ?? d.priority}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${STATUS_LABEL[d.status] ?? d.status}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:${isOverdue ? '#ef4444' : '#64748b'}">${dueTxt}${isOverdue ? ' ⚠️' : ''}</td>
+    const rows = demands
+      .map((d) => {
+        const dt = parseDueDate(d.due_date);
+        const dueTxt = dt
+          ? dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '—';
+        const isOverdue = dt !== null && dt < todayStart;
+        return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${escapeHtml(d.title)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${escapeHtml(PRIORITY_LABEL[d.priority] ?? d.priority)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9">${escapeHtml(STATUS_LABEL[d.status] ?? d.status)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;color:${isOverdue ? '#ef4444' : '#64748b'}">${escapeHtml(dueTxt)}${isOverdue ? ' ⚠️' : ''}</td>
       </tr>`;
-    }).join('');
+      })
+      .join('');
 
     return `<!DOCTYPE html>
 <html>
@@ -101,7 +145,7 @@ export class DemandsReminderService {
       </table>
     </div>
     <div style="padding:16px 32px;border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8">
-      Gabinete da Deputada Federal Luizianne Lins
+      Gabinete Parlamentar · Luizianne Lins
     </div>
   </div>
 </body>

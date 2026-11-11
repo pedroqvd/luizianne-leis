@@ -19,6 +19,6 @@ import { LawsAlertService } from './laws-alert.service';
     AbsenceTrackerService,
     LawsAlertService,
   ],
-  exports: [IngestionService, IngestionQueue, AbsenceTrackerService, LawsAlertService],
+  exports: [CamaraApiClient, IngestionService, IngestionQueue, AbsenceTrackerService, LawsAlertService],
 })
 export class IngestionModule {}

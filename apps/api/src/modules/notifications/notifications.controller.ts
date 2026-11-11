@@ -4,7 +4,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { Observable, map, interval, merge } from 'rxjs';
 import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
-import { Public } from '../../infra/auth';
 
 @ApiTags('notifications')
 @Controller('notifications')
@@ -16,13 +15,12 @@ export class NotificationsController {
 
   @Get()
   list(@Query('limit') limit?: string) {
-    return this.service.list(limit ? Number(limit) : 50);
+    const parsed = limit ? Number(limit) : 50;
+    const safeLimit = Number.isFinite(parsed) ? Math.min(Math.max(Math.floor(parsed), 1), 200) : 50;
+    return this.service.list(safeLimit);
   }
 
-  // SSE keeps a long-lived connection; cliente pode reconectar com frequência
-  // (mobile, retomada de aba). Throttler conta cada handshake — pular para evitar 429.
-  // FIX #2: Marcado como @Public() pois SSE precisa ser acessível sem JWT
-  @Public()
+  // SSE keeps a long-lived connection; JwtAuthGuard valida o token via query (?token=) ou header Authorization.
   @SkipThrottle()
   @Sse('stream')
   stream(): Observable<MessageEvent> {
@@ -31,7 +29,6 @@ export class NotificationsController {
         map((event) => ({ type: event.type, data: event } as MessageEvent)),
       );
 
-      // FIX #4: Heartbeat a cada 30s para detectar desconexões e manter alive
       const heartbeat$ = interval(30_000).pipe(
         map(() => ({ type: 'heartbeat', data: { ts: new Date().toISOString() } } as MessageEvent)),
       );

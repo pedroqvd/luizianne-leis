@@ -185,12 +185,12 @@ export class AbsenceTrackerService {
 
     const date = voting.dataHoraRegistro ?? voting.data ?? null;
 
-    // Transactional: vote + outbox event in same ACID commit
+    let isNewAbsence = false;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      await this.votes.upsert({
+      const { isNew } = await this.votes.upsert({
         proposition_id: prop.id,
         deputy_id: deputyId,
         vote: 'Ausente',
@@ -199,17 +199,20 @@ export class AbsenceTrackerService {
         is_absence: true,
         payload: { voting_id: voting.id, tipo: 'Nominal' },
       }, client);
+      isNewAbsence = isNew;
 
-      await client.query(
-        `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
-         VALUES ($1, $2, $3, $4)`,
-        [
-          'DEPUTY_ABSENT',
-          'vote',
-          prop.id,
-          { session_id: voting.id, proposition_id: prop.id, proposition_title: prop.title, date },
-        ],
-      );
+      if (isNew) {
+        await client.query(
+          `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            'DEPUTY_ABSENT',
+            'vote',
+            prop.id,
+            { session_id: voting.id, proposition_id: prop.id, proposition_title: prop.title, date },
+          ],
+        );
+      }
 
       await client.query('COMMIT');
     } catch (e) {
@@ -219,8 +222,10 @@ export class AbsenceTrackerService {
       client.release();
     }
 
-    this.logger.log(`absence recorded: voting ${voting.id} prop ${prop.id}`);
-    return true;
+    if (isNewAbsence) {
+      this.logger.log(`absence recorded: voting ${voting.id} prop ${prop.id}`);
+    }
+    return isNewAbsence;
   }
 
   private async ensureProposition(p: {

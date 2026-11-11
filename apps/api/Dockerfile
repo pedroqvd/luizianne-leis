@@ -12,16 +12,17 @@ COPY db ./db
 
 RUN cd apps/api && npx nest build
 
-# Drop devDependencies to slim runtime layer.
-RUN cd apps/api && npm prune --omit=dev
+# Drop devDependencies at workspace root to slim runtime layer.
+RUN npm prune --workspace=@luizianne/api --omit=dev
 
 # ── runtime ──────────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+COPY --from=builder /app/package.json            ./
+COPY --from=builder /app/node_modules            ./node_modules
 COPY --from=builder /app/apps/api/package.json   ./apps/api/
-COPY --from=builder /app/apps/api/node_modules   ./apps/api/node_modules
 COPY --from=builder /app/apps/api/dist           ./apps/api/dist
 COPY --from=builder /app/apps/api/scripts        ./apps/api/scripts
 COPY --from=builder /app/db                      ./db

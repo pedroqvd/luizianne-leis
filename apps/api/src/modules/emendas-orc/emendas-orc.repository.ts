@@ -73,8 +73,8 @@ export class EmendasOrcRepository {
     if (filter.search) { where.push(`(descricao ILIKE $${i} OR municipio ILIKE $${i} OR orgao_orcamentario ILIKE $${i})`); params.push(`%${filter.search}%`); i++; }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const limit  = Math.min(filter.limit ?? 60, 200);
-    const offset = filter.offset ?? 0;
+    const limit = Math.min(Math.max(Number(filter.limit) || 60, 1), 200);
+    const offset = Math.max(Number(filter.offset) || 0, 0);
 
     const limitIdx = i++;
     const offsetIdx = i++;

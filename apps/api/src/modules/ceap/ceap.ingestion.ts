@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { CamaraApiClient } from '../ingestion/camara-api.client';
 import { DeputyRepository } from '../core/repositories/deputy.repository';
 import { CeapRepository } from './ceap.repository';
+import { CacheService } from '../../infra/cache/cache.service';
 
 @Injectable()
 export class CeapIngestion {
@@ -13,6 +14,7 @@ export class CeapIngestion {
     private readonly api: CamaraApiClient,
     private readonly deputies: DeputyRepository,
     private readonly repo: CeapRepository,
+    private readonly cache: CacheService,
   ) {}
 
   /** Sincroniza CEAP do ano corrente + ano anterior — roda mensalmente. */
@@ -56,6 +58,7 @@ export class CeapIngestion {
           errors++;
         }
       }
+      await this.cache.invalidate('ceap:*');
     } finally {
       this.running = false;
     }

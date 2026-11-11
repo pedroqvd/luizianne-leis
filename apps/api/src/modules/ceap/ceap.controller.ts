@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Public, AdminGuard } from '../../infra/auth';
 import { CeapService } from './ceap.service';
 import { CeapIngestion } from './ceap.ingestion';
 
@@ -43,8 +44,12 @@ export class CeapController {
   byTipo() { return this.service.byTipo(); }
 
   @Post('ingest')
+  @Public()
+  @UseGuards(AdminGuard)
   ingestRecent() { return this.ingestion.syncRecent(); }
 
   @Post('ingest/historical')
+  @Public()
+  @UseGuards(AdminGuard)
   ingestHistorical() { return this.ingestion.syncHistorical(); }
 }

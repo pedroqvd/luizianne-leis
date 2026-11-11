@@ -1,44 +1,12 @@
-/**
- * FIX F5 (MÉDIO): Removido `export const dynamic = 'force-dynamic'`.
- * A função getUserContext() usa cookies() que já marca a rota como dinâmica.
- * Não é necessário forçar explicitamente, e remover permite que sub-rotas
- * usem ISR/revalidate se quiserem.
- */
-
 import { Sidebar } from '@/components/layout/Sidebar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { MobileHeader } from '@/components/layout/Header';
 import { RealtimeBadge } from '@/components/RealtimeBadge';
 import { CommandPalette } from '@/components/CommandPalette';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-
-async function getUserContext(): Promise<{ isAdmin: boolean; allowedTabs: string[] | null }> {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { isAdmin: false, allowedTabs: null };
-
-    const admin = createAdminClient();
-    const { data: profile } = await admin.from('app_users').select('role').eq('id', user.id).single();
-    const isAdmin = profile?.role === 'admin';
-    if (isAdmin) return { isAdmin: true, allowedTabs: null };
-
-    const { data: perms } = await admin
-      .from('user_tab_permissions').select('tab_slug, enabled').eq('user_id', user.id);
-    if (!perms?.length) return { isAdmin: false, allowedTabs: null };
-
-    const ALL_SLUGS = ['legislativo','emendas','votes','comissoes','editais','analytics','atividade','presenca','demandas','despesas','discursos','frentes'];
-    const map = Object.fromEntries(perms.map(p => [p.tab_slug, p.enabled]));
-    const allowedTabs = ALL_SLUGS.filter(s => map[s] !== false);
-    return { isAdmin, allowedTabs };
-  } catch {
-    return { isAdmin: false, allowedTabs: null };
-  }
-}
+import { getUserAccessContext } from '@/lib/auth-guard';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, allowedTabs } = await getUserContext();
+  const { isAdmin, allowedTabs } = await getUserAccessContext();
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -53,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <BottomNav allowedTabs={allowedTabs} />
       <RealtimeBadge />
-      <CommandPalette />
+      <CommandPalette isAdmin={isAdmin} allowedTabs={allowedTabs} />
     </div>
   );
 }

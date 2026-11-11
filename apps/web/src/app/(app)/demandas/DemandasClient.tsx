@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { deleteDemanda, updateDemandaStatus, createDemandaAndReturn, type DemandaInput } from '@/app/(app)/actions/demandas';
+import { deleteDemanda, updateDemandaStatus, type DemandaInput } from '@/app/(app)/actions/demandas';
 import { DemandaModal, STATUSES, PRIORITIES } from './DemandaModal';
 import { Plus, Pencil, Trash2, Loader2, ClipboardList, AlertCircle, Calendar, User } from 'lucide-react';
 
@@ -30,12 +30,12 @@ const PRIORITY_DOT: Record<string, string> = {
 };
 
 function fmtDate(d: string) {
-  return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  return new Date(d.slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 function isOverdue(due: string | null, status: string) {
   if (!due || status === 'resolvido' || status === 'arquivado') return false;
-  return new Date(due) < new Date();
+  return new Date(due.slice(0, 10) + 'T23:59:59') < new Date();
 }
 
 export function DemandasClient({ demands: initial, members }: Props) {
@@ -43,6 +43,7 @@ export function DemandasClient({ demands: initial, members }: Props) {
   const [activeFilter, setFilter] = useState('todas');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]     = useState<(DemandaInput & { id: number }) | null>(null);
+  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const filters = [
@@ -57,6 +58,7 @@ export function DemandasClient({ demands: initial, members }: Props) {
   const filtered = activeFilter === 'todas' ? demands : demands.filter(d => d.status === activeFilter);
 
   function openEdit(d: Demand) {
+    setErrorMsg(null);
     setEditing({
       id: d.id, title: d.title,
       requester_name: d.requester_name ?? undefined,
@@ -71,20 +73,30 @@ export function DemandasClient({ demands: initial, members }: Props) {
 
   function handleDelete(id: number) {
     if (!confirm('Excluir esta demanda?')) return;
+    setErrorMsg(null);
     startTransition(async () => {
-      await deleteDemanda(id);
-      setDemands(ds => ds.filter(d => d.id !== id));
+      try {
+        await deleteDemanda(id);
+        setDemands(ds => ds.filter(d => d.id !== id));
+      } catch (e: any) {
+        setErrorMsg(e?.message ?? 'Erro ao excluir demanda.');
+      }
     });
   }
 
   function cycleStatus(d: Demand) {
-    if (d.status === 'arquivado') return; // arquivado is terminal — no cycling
+    if (d.status === 'arquivado') return;
     const order = ['novo', 'em_andamento', 'aguardando', 'resolvido'];
     const idx = order.indexOf(d.status);
     const next = order[(idx + 1) % order.length];
+    setErrorMsg(null);
     startTransition(async () => {
-      await updateDemandaStatus(d.id, next);
-      setDemands(ds => ds.map(x => x.id === d.id ? { ...x, status: next } : x));
+      try {
+        await updateDemandaStatus(d.id, next);
+        setDemands(ds => ds.map(x => x.id === d.id ? { ...x, status: next } : x));
+      } catch (e: any) {
+        setErrorMsg(e?.message ?? 'Erro ao atualizar status.');
+      }
     });
   }
 
@@ -95,13 +107,20 @@ export function DemandasClient({ demands: initial, members }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="page-title">Demandas Espontâneas</h1>
-          <p className="text-sm text-slate-500 mt-1">Solicitações recebidas e seu acompanhamento.</p>
+          <h1 className="page-title">Demandas Gerais</h1>
+          <p className="text-sm text-slate-500 mt-1">Solicitações espontâneas recebidas pelo gabinete e acompanhamento.</p>
         </div>
         <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary gap-2">
           <Plus className="w-4 h-4" /> Nova Demanda
         </button>
       </div>
+
+      {errorMsg && (
+        <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -168,35 +187,30 @@ export function DemandasClient({ demands: initial, members }: Props) {
                     {d.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{d.description}</p>}
 
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      {/* Status (clicável para avançar) */}
                       <button
-                          onClick={() => cycleStatus(d)}
-                          disabled={pending || d.status === 'arquivado'}
-                          title={d.status === 'arquivado' ? 'Demanda arquivada' : 'Clique para avançar status'}
-                        >
+                        onClick={() => cycleStatus(d)}
+                        disabled={pending || d.status === 'arquivado'}
+                        title={d.status === 'arquivado' ? 'Demanda arquivada' : 'Clique para avançar status'}
+                      >
                         <span className={`badge border text-[11px] ${d.status === 'arquivado' ? 'cursor-default' : 'cursor-pointer hover:opacity-80'} ${si.color}`}>
                           {si.label}
                         </span>
                       </button>
 
-                      {/* Category */}
                       <span className="badge border border-slate-100 bg-slate-50 text-slate-500 text-[11px]">
                         {d.category}
                       </span>
 
-                      {/* Requester */}
                       {d.requester_name && (
                         <span className="flex items-center gap-1 text-[11px] text-slate-400">
                           <User className="w-3 h-3" />{d.requester_name}
                         </span>
                       )}
 
-                      {/* Assignee */}
                       {d.assignee?.name && (
                         <span className="text-[11px] text-slate-400">→ {d.assignee.name}</span>
                       )}
 
-                      {/* Due date */}
                       {d.due_date && (
                         <span className={`flex items-center gap-1 text-[11px] ${overdue ? 'text-red-500' : 'text-slate-400'}`}>
                           {overdue && <AlertCircle className="w-3 h-3" />}

@@ -5,14 +5,15 @@ import { timingSafeEqual } from 'node:crypto';
 export class AdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const token = request.headers['x-admin-token'];
-    
-    const expected = process.env.ADMIN_TOKEN;
+    const rawHeader = request.headers?.['x-admin-token'];
+    const token = typeof rawHeader === 'string' ? rawHeader.trim() : '';
+
+    const expected = process.env.ADMIN_TOKEN?.trim();
     if (!expected) throw new ForbiddenException('ADMIN_TOKEN não configurado no servidor');
     if (!token) throw new ForbiddenException('token ausente');
 
-    const tokenBuf = Buffer.from(token);
-    const expectedBuf = Buffer.from(expected);
+    const tokenBuf = Buffer.from(token, 'utf8');
+    const expectedBuf = Buffer.from(expected, 'utf8');
 
     if (tokenBuf.length !== expectedBuf.length || !timingSafeEqual(tokenBuf, expectedBuf)) {
       throw new ForbiddenException('token inválido');

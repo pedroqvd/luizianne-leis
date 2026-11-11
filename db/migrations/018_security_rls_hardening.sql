@@ -1,0 +1,333 @@
+-- ============================================================
+-- 018_security_rls_hardening.sql
+-- Blindagem de Segurança e Privacidade (Nível Sigiloso):
+-- 1. Tabela imutável de Audit Log (security_audit_logs)
+-- 2. Funções auxiliares de autenticação e permissão por aba (compatíveis com Supabase e Postgres padrão)
+-- 3. Ativação de Row-Level Security (RLS) em todas as tabelas do schema public
+-- 4. Revogação total de acesso anônimo (anon) no PostgREST
+-- 5. Correção do índice idx_votes_absence_deputy e purge de outbox_events
+-- ============================================================
+
+-- ── 1. Tabela de Auditoria de Segurança (security_audit_logs) ──────────────
+CREATE TABLE IF NOT EXISTS security_audit_logs (
+  id            BIGSERIAL   PRIMARY KEY,
+  actor_id      UUID        REFERENCES app_users(id) ON DELETE SET NULL,
+  actor_email   TEXT,
+  action        TEXT        NOT NULL,
+  resource_type TEXT        NOT NULL,
+  resource_id   TEXT,
+  metadata      JSONB       NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sec_audit_created  ON security_audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sec_audit_actor    ON security_audit_logs (actor_id);
+CREATE INDEX IF NOT EXISTS idx_sec_audit_resource ON security_audit_logs (resource_type, resource_id);
+
+-- ── 2. Correção de Índice Duplicado e Limpeza de Outbox ────────────────────
+CREATE INDEX IF NOT EXISTS idx_votes_absence_deputy
+  ON votes (deputy_id, is_absence)
+  WHERE is_absence = true;
+
+CREATE OR REPLACE FUNCTION purge_old_events(retention_days INT DEFAULT 90)
+RETURNS INT AS $$
+DECLARE
+  deleted_sys INT;
+  deleted_outbox INT;
+BEGIN
+  DELETE FROM system_events
+   WHERE created_at < NOW() - (retention_days * INTERVAL '1 day');
+  GET DIAGNOSTICS deleted_sys = ROW_COUNT;
+
+  DELETE FROM outbox_events
+   WHERE processed_at IS NOT NULL
+     AND processed_at < NOW() - INTERVAL '30 days';
+  GET DIAGNOSTICS deleted_outbox = ROW_COUNT;
+
+  RETURN deleted_sys + deleted_outbox;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ── 3. Funções Auxiliares de Segurança para RLS ────────────────────────────
+CREATE OR REPLACE FUNCTION public.current_auth_uid()
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  raw_sub TEXT;
+BEGIN
+  raw_sub := NULLIF(current_setting('request.jwt.claim.sub', true), '');
+  IF raw_sub IS NULL THEN
+    BEGIN
+      raw_sub := (NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub');
+    EXCEPTION WHEN OTHERS THEN
+      raw_sub := NULL;
+    END;
+  END IF;
+  IF raw_sub IS NULL THEN
+    RETURN NULL;
+  END IF;
+  RETURN raw_sub::uuid;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_app_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.app_users
+     WHERE id = public.current_auth_uid()
+       AND role = 'admin'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_tab_access(p_tab_slug TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT (
+    public.current_auth_uid() IS NOT NULL
+    AND (
+      public.is_app_admin()
+      OR NOT EXISTS (
+        SELECT 1
+          FROM public.user_tab_permissions
+         WHERE user_id = public.current_auth_uid()
+           AND tab_slug = p_tab_slug
+           AND enabled = false
+      )
+    )
+  );
+$$;
+
+-- ── 4. Habilitar Row-Level Security (RLS) em TODAS as Tabelas ──────────────
+ALTER TABLE app_users                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_areas        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_subscriptions        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_tab_permissions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presence_records          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE demands                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ceara_municipalities      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE municipal_authorities     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE authority_demands         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE edital_authority_tracking ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_audit_logs       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outbox_events             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_events             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deputies                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE propositions              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proposition_authors       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proposition_proceedings   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proposition_versions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE votes                     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proposition_categories    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commissions               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deputy_commissions        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE editais                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emendas_orcamentarias     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ceap_despesas             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE discursos                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE frentes_parlamentares     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE frente_membros            ENABLE ROW LEVEL SECURITY;
+
+-- Protege schema_migrations caso já exista
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'schema_migrations') THEN
+    EXECUTE 'ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY';
+  END IF;
+END $$;
+
+-- ── 5. Políticas de RLS para Tabelas Sensíveis / Gestão Interna ────────────
+
+-- app_users: leitura apenas para autenticados; escrita apenas para admin
+DROP POLICY IF EXISTS policy_app_users_select ON app_users;
+CREATE POLICY policy_app_users_select ON app_users
+  FOR SELECT USING (public.current_auth_uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS policy_app_users_admin_all ON app_users;
+CREATE POLICY policy_app_users_admin_all ON app_users
+  FOR ALL USING (public.is_app_admin()) WITH CHECK (public.is_app_admin());
+
+-- user_tab_permissions: usuário lê as próprias; admin gerencia todas
+DROP POLICY IF EXISTS policy_tab_perms_select ON user_tab_permissions;
+CREATE POLICY policy_tab_perms_select ON user_tab_permissions
+  FOR SELECT USING (user_id = public.current_auth_uid() OR public.is_app_admin());
+
+DROP POLICY IF EXISTS policy_tab_perms_admin_write ON user_tab_permissions;
+CREATE POLICY policy_tab_perms_admin_write ON user_tab_permissions
+  FOR ALL USING (public.is_app_admin()) WITH CHECK (public.is_app_admin());
+
+-- user_subscriptions: usuário lê as próprias; admin gerencia todas
+DROP POLICY IF EXISTS policy_user_sub_select ON user_subscriptions;
+CREATE POLICY policy_user_sub_select ON user_subscriptions
+  FOR SELECT USING (user_id = public.current_auth_uid() OR public.is_app_admin());
+
+DROP POLICY IF EXISTS policy_user_sub_admin_write ON user_subscriptions;
+CREATE POLICY policy_user_sub_admin_write ON user_subscriptions
+  FOR ALL USING (public.is_app_admin()) WITH CHECK (public.is_app_admin());
+
+-- demands (Demandas Espontâneas)
+DROP POLICY IF EXISTS policy_demands_select ON demands;
+CREATE POLICY policy_demands_select ON demands
+  FOR SELECT USING (public.has_tab_access('demandas'));
+
+DROP POLICY IF EXISTS policy_demands_insert ON demands;
+CREATE POLICY policy_demands_insert ON demands
+  FOR INSERT WITH CHECK (
+    public.has_tab_access('demandas')
+    AND (created_by = public.current_auth_uid() OR public.is_app_admin())
+  );
+
+DROP POLICY IF EXISTS policy_demands_update ON demands;
+CREATE POLICY policy_demands_update ON demands
+  FOR UPDATE USING (
+    public.has_tab_access('demandas')
+    AND (
+      public.is_app_admin()
+      OR created_by = public.current_auth_uid()
+      OR assigned_to = public.current_auth_uid()
+    )
+  );
+
+DROP POLICY IF EXISTS policy_demands_delete ON demands;
+CREATE POLICY policy_demands_delete ON demands
+  FOR DELETE USING (
+    public.has_tab_access('demandas')
+    AND (public.is_app_admin() OR created_by = public.current_auth_uid())
+  );
+
+-- presence_records (Presença no Gabinete)
+DROP POLICY IF EXISTS policy_presence_select ON presence_records;
+CREATE POLICY policy_presence_select ON presence_records
+  FOR SELECT USING (public.has_tab_access('presenca'));
+
+DROP POLICY IF EXISTS policy_presence_insert ON presence_records;
+CREATE POLICY policy_presence_insert ON presence_records
+  FOR INSERT WITH CHECK (
+    public.has_tab_access('presenca')
+    AND (created_by = public.current_auth_uid() OR public.is_app_admin())
+  );
+
+DROP POLICY IF EXISTS policy_presence_delete ON presence_records;
+CREATE POLICY policy_presence_delete ON presence_records
+  FOR DELETE USING (
+    public.has_tab_access('presenca')
+    AND (public.is_app_admin() OR created_by = public.current_auth_uid())
+  );
+
+-- municipal_authorities (Articulação Municipal - Prefeitos)
+DROP POLICY IF EXISTS policy_mun_auth_select ON municipal_authorities;
+CREATE POLICY policy_mun_auth_select ON municipal_authorities
+  FOR SELECT USING (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_mun_auth_insert ON municipal_authorities;
+CREATE POLICY policy_mun_auth_insert ON municipal_authorities
+  FOR INSERT WITH CHECK (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_mun_auth_update ON municipal_authorities;
+CREATE POLICY policy_mun_auth_update ON municipal_authorities
+  FOR UPDATE USING (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_mun_auth_delete ON municipal_authorities;
+CREATE POLICY policy_mun_auth_delete ON municipal_authorities
+  FOR DELETE USING (
+    public.has_tab_access('articulacao')
+    AND (public.is_app_admin() OR created_by = public.current_auth_uid())
+  );
+
+-- authority_demands (Demandas dos Prefeitos)
+DROP POLICY IF EXISTS policy_auth_demands_select ON authority_demands;
+CREATE POLICY policy_auth_demands_select ON authority_demands
+  FOR SELECT USING (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_auth_demands_insert ON authority_demands;
+CREATE POLICY policy_auth_demands_insert ON authority_demands
+  FOR INSERT WITH CHECK (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_auth_demands_update ON authority_demands;
+CREATE POLICY policy_auth_demands_update ON authority_demands
+  FOR UPDATE USING (public.has_tab_access('articulacao'));
+
+DROP POLICY IF EXISTS policy_auth_demands_delete ON authority_demands;
+CREATE POLICY policy_auth_demands_delete ON authority_demands
+  FOR DELETE USING (
+    public.has_tab_access('articulacao')
+    AND (public.is_app_admin() OR created_by = public.current_auth_uid())
+  );
+
+-- edital_authority_tracking (Traqueamento Edital x Prefeito)
+DROP POLICY IF EXISTS policy_edital_track_select ON edital_authority_tracking;
+CREATE POLICY policy_edital_track_select ON edital_authority_tracking
+  FOR SELECT USING (
+    public.has_tab_access('articulacao') OR public.has_tab_access('editais')
+  );
+
+DROP POLICY IF EXISTS policy_edital_track_write ON edital_authority_tracking;
+CREATE POLICY policy_edital_track_write ON edital_authority_tracking
+  FOR ALL USING (
+    public.has_tab_access('articulacao') OR public.has_tab_access('editais')
+  ) WITH CHECK (
+    public.has_tab_access('articulacao') OR public.has_tab_access('editais')
+  );
+
+-- security_audit_logs: somente admin pode ler
+DROP POLICY IF EXISTS policy_audit_logs_admin_select ON security_audit_logs;
+CREATE POLICY policy_audit_logs_admin_select ON security_audit_logs
+  FOR SELECT USING (public.is_app_admin());
+
+-- ── 6. Políticas de Leitura Autenticada para Tabelas de Dados Legislativos ─
+DO $$
+DECLARE
+  tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'notification_areas',
+    'ceara_municipalities',
+    'system_events',
+    'deputies',
+    'propositions',
+    'proposition_authors',
+    'proposition_proceedings',
+    'proposition_versions',
+    'votes',
+    'categories',
+    'proposition_categories',
+    'commissions',
+    'deputy_commissions',
+    'editais',
+    'emendas_orcamentarias',
+    'ceap_despesas',
+    'discursos',
+    'frentes_parlamentares',
+    'frente_membros'
+  ]
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS policy_%I_auth_read ON public.%I', tbl, tbl);
+    EXECUTE format(
+      'CREATE POLICY policy_%I_auth_read ON public.%I FOR SELECT USING (public.current_auth_uid() IS NOT NULL)',
+      tbl, tbl
+    );
+  END LOOP;
+END $$;
+
+-- ── 7. Revogar Acesso Anônimo (anon) no Supabase PostgREST ─────────────────
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon';
+    EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon';
+  END IF;
+END $$;

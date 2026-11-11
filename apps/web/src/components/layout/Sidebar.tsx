@@ -6,25 +6,36 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
   Activity, Users, LogOut, ChevronRight,
-  Vote, Building2, FileSearch, Search, MapPin, ClipboardList, Mic, Receipt, Flag,
+  Vote, Building2, FileSearch, Search, MapPin, ClipboardList, Mic, Receipt, Flag, Handshake,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { ALL_TABS, type TabSlug } from '@/lib/navigation';
+
+const ICON_BY_SLUG: Record<TabSlug, any> = {
+  articulacao: Handshake,
+  editais:     FileSearch,
+  emendas:     Landmark,
+  demandas:    ClipboardList,
+  legislativo: ScrollText,
+  votes:       Vote,
+  comissoes:   Building2,
+  analytics:   BarChart3,
+  atividade:   Activity,
+  despesas:    Receipt,
+  discursos:   Mic,
+  frentes:     Flag,
+  presenca:    MapPin,
+};
 
 const navItems = [
-  { href: '/',            label: 'Dashboard',   icon: LayoutDashboard, slug: null },
-  { href: '/legislativo', label: 'Legislativo',  icon: ScrollText,      slug: 'legislativo' },
-  { href: '/emendas',     label: 'Emendas',      icon: Landmark,        slug: 'emendas' },
-  { href: '/votes',       label: 'Votações',     icon: Vote,            slug: 'votes' },
-  { href: '/comissoes',   label: 'Comissões',    icon: Building2,       slug: 'comissoes' },
-  { href: '/editais',     label: 'Editais',      icon: FileSearch,      slug: 'editais' },
-  { href: '/analytics',   label: 'Analytics',    icon: BarChart3,       slug: 'analytics' },
-  { href: '/atividade',   label: 'Atividade',    icon: Activity,        slug: 'atividade' },
-  { href: '/despesas',    label: 'CEAP',         icon: Receipt,         slug: 'despesas' },
-  { href: '/discursos',   label: 'Discursos',    icon: Mic,             slug: 'discursos' },
-  { href: '/frentes',    label: 'Frentes Parl.', icon: Flag,            slug: 'frentes' },
-  { href: '/presenca',    label: 'Presença',     icon: MapPin,          slug: 'presenca' },
-  { href: '/demandas',    label: 'Demandas',     icon: ClipboardList,   slug: 'demandas' },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, slug: null as TabSlug | null },
+  ...ALL_TABS.map((t) => ({
+    href: t.href,
+    label: t.label,
+    icon: ICON_BY_SLUG[t.slug] ?? FileSearch,
+    slug: t.slug as TabSlug | null,
+  })),
 ];
 
 interface Props { isAdmin?: boolean; allowedTabs?: string[] | null }
@@ -57,7 +68,7 @@ export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
       <div className="px-5 py-6 border-b border-white/5">
         <div className="flex items-center">
           <div className="bg-white rounded-lg px-2 py-1.5 shadow">
-            <Image src="/LOGO-LUIZIANNE-03.png" alt="Deputada Federal Luizianne" width={160} height={32} className="h-8 w-auto" />
+            <Image src="/LOGO-LUIZIANNE-03.png" alt="Senadora Luizianne Lins" width={160} height={32} className="h-8 w-auto" />
           </div>
         </div>
       </div>
@@ -77,25 +88,34 @@ export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         <p className="section-label px-2 mb-2">Navegação</p>
-        {navItems.filter(({ slug }) => slug === null || allowedTabs === null || allowedTabs.includes(slug)).map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
-              isActive(href)
-                ? 'bg-sidebar-active text-white'
-                : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
-            )}
-          >
-            <Icon className={cn(
-              'w-4 h-4 flex-shrink-0 transition-colors',
-              isActive(href) ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
-            )} />
-            <span className="flex-1">{label}</span>
-            {isActive(href) && <ChevronRight className="w-3 h-3 text-brand-400 opacity-70" />}
-          </Link>
-        ))}
+        {navItems
+          .filter(({ slug }) => slug === null || allowedTabs === null || allowedTabs.includes(slug))
+          .map(({ href, label, icon: Icon, slug }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
+                isActive(href)
+                  ? 'bg-sidebar-active text-white'
+                  : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
+              )}
+            >
+              <Icon
+                className={cn(
+                  'w-4 h-4 flex-shrink-0 transition-colors',
+                  isActive(href) ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
+                )}
+              />
+              <span className="flex-1 truncate">{label}</span>
+              {slug === 'articulacao' && !isActive(href) && (
+                <span className="text-[9px] font-bold uppercase tracking-wider bg-brand-600/30 text-brand-300 px-1.5 py-0.5 rounded">
+                  CE
+                </span>
+              )}
+              {isActive(href) && <ChevronRight className="w-3 h-3 text-brand-400 opacity-70" />}
+            </Link>
+          ))}
       </nav>
 
       {/* Bottom */}
@@ -110,10 +130,12 @@ export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
                 : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
             )}
           >
-            <Users className={cn(
-              'w-4 h-4 flex-shrink-0',
-              pathname.startsWith('/admin') ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
-            )} />
+            <Users
+              className={cn(
+                'w-4 h-4 flex-shrink-0',
+                pathname.startsWith('/admin') ? 'text-brand-400' : 'text-sidebar-text group-hover:text-slate-300',
+              )}
+            />
             <span>Equipe</span>
           </Link>
         )}

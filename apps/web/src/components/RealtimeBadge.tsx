@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 interface Event {
@@ -17,61 +17,65 @@ const LABELS: Record<string, string> = {
   NEW_RAPPORTEUR:  'Nova relatoria',
 };
 
-/**
- * FIX F2 (ALTO): SSE com autenticação via query param.
- * EventSource nativo não suporta headers customizados, então enviamos
- * o access_token como query param. O backend deve validar ?token= na rota SSE.
- *
- * Também: auto-reconnect, heartbeat handling, e stale event cleanup.
- */
 export function RealtimeBadge() {
   const [events, setEvents] = useState<Event[]>([]);
 
-  const connect = useCallback(async () => {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+  useEffect(() => {
+    let cancelled = false;
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // FIX F2: Obtém token da sessão Supabase para enviar como query param
-    let tokenParam = '';
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        tokenParam = `?token=${encodeURIComponent(session.access_token)}`;
+    async function connect() {
+      if (cancelled) return;
+      const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+      let tokenParam = '';
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          tokenParam = `?token=${encodeURIComponent(session.access_token)}`;
+        }
+      } catch {}
+
+      if (cancelled || !tokenParam) return;
+
+      es = new EventSource(`${base}/api/notifications/stream${tokenParam}`);
+
+      const handler = (msg: MessageEvent) => {
+        if (cancelled) return;
+        try {
+          const data = JSON.parse(msg.data) as Event;
+          setEvents((prev) => [data, ...prev].slice(0, 3));
+        } catch {}
+      };
+
+      es.addEventListener('heartbeat', () => {});
+      for (const t of Object.keys(LABELS)) {
+        es.addEventListener(t, handler as any);
       }
-    } catch {
-      // Se não conseguir token, conecta mesmo assim (SSE é @Public)
+
+      es.onerror = () => {
+        es?.close();
+        if (!cancelled) {
+          reconnectTimer = setTimeout(() => {
+            void connect();
+          }, 5_000);
+        }
+      };
     }
 
-    const es = new EventSource(`${base}/api/notifications/stream${tokenParam}`);
+    void connect();
 
-    const handler = (msg: MessageEvent) => {
-      try {
-        const data = JSON.parse(msg.data) as Event;
-        setEvents((prev) => [data, ...prev].slice(0, 3));
-      } catch {}
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      es?.close();
     };
-
-    // FIX F7: Ignorar heartbeat events (não são eventos de domínio)
-    es.addEventListener('heartbeat', () => { /* keep-alive, ignorar */ });
-
-    for (const t of Object.keys(LABELS)) es.addEventListener(t, handler as any);
-
-    // Auto-reconnect on error (com backoff)
-    es.onerror = () => {
-      es.close();
-      setTimeout(() => connect(), 5_000);
-    };
-
-    return () => es.close();
   }, []);
 
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    connect().then((fn) => { cleanup = fn; });
-    return () => cleanup?.();
-  }, [connect]);
-
-  // FIX F7: Auto-dismiss events after 10s
   useEffect(() => {
     if (!events.length) return;
     const timer = setTimeout(() => setEvents((prev) => prev.slice(0, -1)), 10_000);

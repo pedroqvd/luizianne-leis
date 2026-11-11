@@ -16,6 +16,13 @@ const TYPES = [
   { value: 'outro',       label: 'Outro' },
 ];
 
+const ALLOWED_MIMES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
+
 interface Props { onClose: (record?: any) => void }
 
 export function PresenceForm({ onClose }: Props) {
@@ -32,6 +39,15 @@ export function PresenceForm({ onClose }: Props) {
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_MIMES[file.type]) {
+      setError('Formato de imagem inválido. Use JPG, PNG ou WEBP.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setError('A imagem deve ter no máximo 5 MB.');
+      return;
+    }
+    setError('');
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
@@ -45,12 +61,12 @@ export function PresenceForm({ onClose }: Props) {
       try {
         let photo_url: string | undefined;
         if (photoFile) {
+          const safeExt = ALLOWED_MIMES[photoFile.type] ?? 'jpg';
           const supabase = createClient();
-          const ext = photoFile.name.split('.').pop();
-          const path = `${Date.now()}.${ext}`;
+          const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${safeExt}`;
           const { error: uploadError } = await supabase.storage
             .from('presence-photos')
-            .upload(path, photoFile, { upsert: true });
+            .upload(path, photoFile, { upsert: false, contentType: photoFile.type });
           if (uploadError) {
             setError(`Erro ao enviar foto: ${uploadError.message}`);
             return;
@@ -71,7 +87,7 @@ export function PresenceForm({ onClose }: Props) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-up">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-900">Registrar Presença</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+          <button onClick={() => onClose()} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -134,7 +150,7 @@ export function PresenceForm({ onClose }: Props) {
           {/* Foto */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">
-              <Camera className="w-3.5 h-3.5 inline mr-1" />Foto (opcional)
+              <Camera className="w-3.5 h-3.5 inline mr-1" />Foto (opcional, máx. 5 MB)
             </label>
             {photoPreview ? (
               <div className="relative h-32 w-full">
@@ -150,8 +166,8 @@ export function PresenceForm({ onClose }: Props) {
             ) : (
               <label className="flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-lg h-16 cursor-pointer hover:bg-slate-50 transition-colors text-xs text-slate-400">
                 <Camera className="w-4 h-4" />
-                Clique para adicionar foto
-                <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
+                Clique para adicionar foto (JPG, PNG, WEBP)
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhoto} className="hidden" />
               </label>
             )}
           </div>
@@ -159,7 +175,7 @@ export function PresenceForm({ onClose }: Props) {
           {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 btn border border-slate-200 text-slate-600 hover:bg-slate-50">
+            <button type="button" onClick={() => onClose()} className="flex-1 btn border border-slate-200 text-slate-600 hover:bg-slate-50">
               Cancelar
             </button>
             <button type="submit" disabled={pending} className="flex-1 btn-primary justify-center">

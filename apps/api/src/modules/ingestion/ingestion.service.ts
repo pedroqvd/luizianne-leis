@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
 import {
   CamaraApiClient,
@@ -12,26 +12,27 @@ import { PropositionRepository } from '../core/repositories/proposition.reposito
 import { VoteRepository } from '../core/repositories/vote.repository';
 import { ClassifierService } from '../nlp/classifier.service';
 import { CommissionsRepository } from '../commissions/commissions.repository';
-import { EventBus } from '../../shared/event-bus';
 import { CacheService } from '../../infra/cache/cache.service';
+
+const MATERIALIZED_VIEWS = [
+  'v_deputy_productivity',
+  'v_proposition_approval',
+  'v_coauthorship_edges',
+  'v_categories_breakdown',
+] as const;
 
 /**
  * Orquestra a ingestão dos dados da API da Câmara.
  * - Busca dados da deputada-alvo
  * - Lista proposições autoradas
- * - Para cada proposição, sincroniza autores, tramitações e votos
- * - Emite eventos de domínio quando detecta novidades (diff-based)
- *
- * FIX #5: Agora usa transações para garantir atomicidade
- * FIX #6: Concorrência controlada com mutex por proposição
- * FIX #9: Eventos emitidos APÓS commit da transação
+ * - Para cada proposição, busca dados remotos ANTES de abrir transação SQL (evita pool starvation/deadlock)
+ * - Emite eventos de domínio via Outbox transacional quando detecta novidades (diff-based)
+ * - Atualiza todas as 4 Materialized Views ao final
  */
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
   private readonly concurrency = Number(process.env.INGESTION_CONCURRENCY ?? 4);
-
-  // FIX #6: Mutex simples para evitar sincronização duplicada da mesma proposição
   private readonly inProgress = new Set<number>();
 
   constructor(
@@ -42,7 +43,6 @@ export class IngestionService {
     private readonly votes: VoteRepository,
     private readonly classifier: ClassifierService,
     private readonly commissions: CommissionsRepository,
-    private readonly events: EventBus,
     private readonly cache: CacheService,
   ) {}
 
@@ -55,11 +55,8 @@ export class IngestionService {
 
     await this.syncDeputyCommissions(deputy.id, deputy.external_id);
 
-    // Descobrir IDs históricos da deputada nas legislaturas anteriores.
-    // A Câmara API usa IDs distintos por mandato — sem isso apenas a legislatura
-    // atual (TARGET_DEPUTY_EXTERNAL_ID) seria buscada.
     const deputyName = process.env.TARGET_DEPUTY_NAME ?? 'Luizianne';
-    const deputyUf   = process.env.TARGET_DEPUTY_UF ?? 'CE';
+    const deputyUf = process.env.TARGET_DEPUTY_UF ?? 'CE';
     const currentLegislatura = Number(process.env.TARGET_DEPUTY_LEGISLATURA ?? 57);
     const startLegislatura = Number(process.env.INGEST_START_LEGISLATURA ?? 55);
     const allDeputyIds = new Set<number>([externalId]);
@@ -76,8 +73,6 @@ export class IngestionService {
 
     this.logger.log(`syncing propositions for deputy ids: [${Array.from(allDeputyIds).join(', ')}]`);
 
-    // Map historical external IDs → current deputy DB id so syncAuthors can link
-    // historical authorship records to the same DB row instead of creating ghost rows.
     const historicalIdMap = new Map<number, number>();
     for (const histId of allDeputyIds) {
       if (histId !== externalId) {
@@ -88,7 +83,6 @@ export class IngestionService {
     let totalProps = 0;
     let totalEvents = 0;
 
-    // Fases 1–3: proposições por autor (todas as legislaturas)
     for (const depId of allDeputyIds) {
       let page = 1;
       while (page <= 500) {
@@ -114,38 +108,45 @@ export class IngestionService {
         page += 1;
       }
 
-      // Relatora — também por legislatura
       const relatorStats = await this.syncRelatorPropositions(deputy.id, depId, historicalIdMap);
       totalProps += relatorStats.propositions;
       totalEvents += relatorStats.events;
     }
 
-    // Fase 5: ingerir proposições de comissões onde a deputada exerce presidência
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')
-      .split(',').map((s) => s.trim()).filter(Boolean);
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     for (const sigla of commissionSiglas) {
       const commStats = await this.syncCommissionPropositions(deputy.id, sigla, historicalIdMap);
       totalProps += commStats.propositions;
       totalEvents += commStats.events;
     }
 
+    await this.refreshMaterializedViews();
     await this.cache.invalidate('propositions:*');
     await this.cache.invalidate('analytics:*');
-    
-    try {
-      await this.pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY v_categories_breakdown');
-      this.logger.log('Materialized view v_categories_breakdown refreshed.');
-    } catch (e: any) {
-      this.logger.warn(`Failed to refresh materialized view (maybe needs first non-concurrent refresh?): ${e.message}`);
-      try {
-        await this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown');
-      } catch (e: any) {
-        this.logger.warn(`Materialized view full refresh also failed: ${e.message}`);
-      }
-    }
+    await this.cache.invalidate('votes:*');
+    await this.cache.invalidate('commissions:*');
 
     this.logger.log(`sync done: ${totalProps} propositions, ${totalEvents} events`);
     return { deputies: 1, propositions: totalProps, events: totalEvents };
+  }
+
+  async refreshMaterializedViews(): Promise<void> {
+    for (const viewName of MATERIALIZED_VIEWS) {
+      try {
+        await this.pool.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${viewName}`);
+        this.logger.debug(`Materialized view ${viewName} refreshed concurrently.`);
+      } catch (e: any) {
+        this.logger.warn(`Concurrent refresh failed for ${viewName} (${e.message}), trying non-concurrent refresh`);
+        try {
+          await this.pool.query(`REFRESH MATERIALIZED VIEW ${viewName}`);
+        } catch (err: any) {
+          this.logger.warn(`Materialized view ${viewName} refresh failed: ${err.message}`);
+        }
+      }
+    }
   }
 
   private async syncRelatorPropositions(
@@ -241,10 +242,6 @@ export class IngestionService {
     }
   }
 
-  /**
-   * FIX #6: Wrapper com mutex para evitar sincronização duplicada.
-   * Se a proposição já está sendo sincronizada por outra Promise, pula.
-   */
   private async syncPropositionSafe(
     externalId: number,
     targetDeputyId: number,
@@ -271,80 +268,120 @@ export class IngestionService {
     let eventsEmitted = 0;
     const pendingEvents: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
 
+    // 1. Buscar TODOS os dados HTTP na API da Câmara ANTES de abrir transação no banco
     const remote = await this.api.getProposition(externalId);
     if (!remote) return { eventsEmitted };
 
+    const [authors, proceedings, votings] = await Promise.all([
+      this.api.getPropositionAuthors(externalId),
+      this.api.getPropositionProceedings(externalId),
+      this.api.getPropositionVotes(externalId),
+    ]);
+
+    const votingDetailsList: Array<{ voting: any; detalhes: any[] }> = [];
+    for (const v of votings) {
+      const detalhes = await this.api.getVoteDetails(v.id).catch((e: any) => {
+        this.logger.warn(`getVoteDetails failed for voting ${v.id}: ${e.message}`);
+        return [];
+      });
+      votingDetailsList.push({ voting: v, detalhes });
+    }
+
+    // 2. Abrir transação curta somente para persistência local no PostgreSQL
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
-      const { proposition, isNew, statusChanged } = await this.props.upsert({
-      external_id: remote.id,
-      type: remote.siglaTipo,
-      number: remote.numero ?? null,
-      year: remote.ano ?? null,
-      title: remote.ementa ?? null,
-      summary: remote.ementaDetalhada ?? remote.ementa ?? null,
-      status: remote.statusProposicao?.descricaoSituacao ?? null,
-      keywords: remote.keywords ?? null,
-      url: camaraPropositionWebUrl(remote.id),
-      presented_at: remote.dataApresentacao ?? null,
-      payload: remote,
-    }, client);
+      const { proposition, isNew, statusChanged } = await this.props.upsert(
+        {
+          external_id: remote.id,
+          type: remote.siglaTipo,
+          number: remote.numero ?? null,
+          year: remote.ano ?? null,
+          title: remote.ementa ?? null,
+          summary: remote.ementaDetalhada ?? remote.ementa ?? null,
+          status: remote.statusProposicao?.descricaoSituacao ?? null,
+          keywords: remote.keywords ?? null,
+          url: camaraPropositionWebUrl(remote.id),
+          presented_at: remote.dataApresentacao ?? null,
+          payload: remote,
+        },
+        client,
+      );
 
-    if (isNew) {
-      pendingEvents.push({
-        type: 'NEW_PROPOSITION',
-        aggregateType: 'proposition',
-        aggregateId: proposition.id,
-        payload: { external_id: proposition.external_id, title: proposition.title },
-      });
-      eventsEmitted++;
-    } else if (statusChanged) {
-      pendingEvents.push({
-        type: 'STATUS_CHANGED',
-        aggregateType: 'proposition',
-        aggregateId: proposition.id,
-        payload: { external_id: proposition.external_id, status: proposition.status },
-      });
-      eventsEmitted++;
-    }
+      const fullPropositionPayload = {
+        external_id: proposition.external_id,
+        type: proposition.type,
+        number: proposition.number,
+        year: proposition.year,
+        title: proposition.title,
+        status: proposition.status,
+        url: proposition.url,
+      };
 
-    const authorEvents = await this.syncAuthors(proposition.id, externalId, targetDeputyId, client, historicalIdMap);
-    eventsEmitted += authorEvents.count;
-    pendingEvents.push(...authorEvents.events);
-
-    await this.syncProceedings(proposition.id, externalId, client);
-
-    const voteEvents = await this.syncVotes(proposition.id, externalId, targetDeputyId, client);
-    eventsEmitted += voteEvents.count;
-    pendingEvents.push(...voteEvents.events);
-
-    // FIX #9: Gravar na Outbox (dentro da transação!) em vez de memory EventBus
-    if (pendingEvents.length > 0) {
-      for (const event of pendingEvents) {
-        await client.query(
-          `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
-           VALUES ($1, $2, $3, $4)`,
-          [event.type, event.aggregateType, event.aggregateId, event.payload]
-        );
+      if (isNew) {
+        pendingEvents.push({
+          type: 'NEW_PROPOSITION',
+          aggregateType: 'proposition',
+          aggregateId: proposition.id,
+          payload: fullPropositionPayload,
+        });
+        eventsEmitted++;
+      } else if (statusChanged) {
+        pendingEvents.push({
+          type: 'STATUS_CHANGED',
+          aggregateType: 'proposition',
+          aggregateId: proposition.id,
+          payload: fullPropositionPayload,
+        });
+        eventsEmitted++;
       }
-    }
 
-    await client.query('COMMIT');
+      const authorEvents = await this.persistAuthors(
+        proposition.id,
+        authors,
+        targetDeputyId,
+        client,
+        historicalIdMap,
+      );
+      eventsEmitted += authorEvents.count;
+      pendingEvents.push(...authorEvents.events);
 
-    if (isNew || statusChanged) {
-      try {
-        await this.classifier.classifyAndPersist(
-          proposition.id,
-          `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
-        );
-      } catch (e: any) {
-        this.logger.error(`classifyAndPersist failed for ${proposition.id}: ${e.message}`);
+      await this.persistProceedings(proposition.id, externalId, proceedings, client);
+
+      const voteEvents = await this.persistVotes(
+        proposition.id,
+        votingDetailsList,
+        targetDeputyId,
+        client,
+      );
+      eventsEmitted += voteEvents.count;
+      pendingEvents.push(...voteEvents.events);
+
+      if (pendingEvents.length > 0) {
+        for (const event of pendingEvents) {
+          await client.query(
+            `INSERT INTO outbox_events (type, aggregate_type, aggregate_id, payload)
+             VALUES ($1, $2, $3, $4)`,
+            [event.type, event.aggregateType, event.aggregateId, event.payload],
+          );
+        }
       }
-    }
 
-    return { eventsEmitted };
+      await client.query('COMMIT');
+
+      if (isNew || statusChanged) {
+        try {
+          await this.classifier.classifyAndPersist(
+            proposition.id,
+            `${proposition.title ?? ''} ${proposition.summary ?? ''}`,
+          );
+        } catch (e: any) {
+          this.logger.error(`classifyAndPersist failed for ${proposition.id}: ${e.message}`);
+        }
+      }
+
+      return { eventsEmitted };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -353,58 +390,57 @@ export class IngestionService {
     }
   }
 
-  private async syncAuthors(
+  private async persistAuthors(
     propositionId: number,
-    externalPropId: number,
+    authors: any[],
     targetDeputyId: number,
-    client: import('pg').PoolClient,
+    client: PoolClient,
     historicalIdMap?: Map<number, number>,
   ) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
-    try {
-      const authors = await this.api.getPropositionAuthors(externalPropId);
-      for (const a of authors) {
-        const externalDeputyId = extractDeputyIdFromUri(a.uri);
-        if (!externalDeputyId) continue; // autor é comissão/órgão, ignora
 
-        // If this external ID is a historical mandate ID of the target deputy,
-        // link directly to the current deputy record instead of creating a ghost.
-        let dep: { id: number };
-        if (historicalIdMap?.has(externalDeputyId)) {
-          dep = { id: historicalIdMap.get(externalDeputyId)! };
-        } else {
-          dep = await this.deputies.findByExternalId(externalDeputyId) ?? await this.deputies.upsert({
-            external_id: externalDeputyId,
-            name: a.nome ?? 'Deputado(a)',
-            party: a.siglaPartido ?? null,
-            state: a.siglaUf ?? null,
-          }, client);
-        }
+    for (const a of authors) {
+      const externalDeputyId = extractDeputyIdFromUri(a.uri);
+      if (!externalDeputyId) continue;
 
-        const role = mapAuthorRole(a.tipo, a.proponente, a.ordemAssinatura);
-        const { isNew } = await this.props.upsertAuthor(
-          propositionId,
-          dep.id,
-          role,
-          a.ordemAssinatura ?? null,
-          client
-        );
-
-        if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
-          events.push({
-            type: 'NEW_RAPPORTEUR',
-            aggregateType: 'proposition',
-            aggregateId: propositionId,
-            payload: { deputy_id: dep.id },
-          });
-          count++;
-        }
+      let dep: { id: number };
+      if (historicalIdMap?.has(externalDeputyId)) {
+        dep = { id: historicalIdMap.get(externalDeputyId)! };
+      } else {
+        dep =
+          (await this.deputies.findByExternalId(externalDeputyId, client)) ??
+          (await this.deputies.upsert(
+            {
+              external_id: externalDeputyId,
+              name: a.nome ?? 'Deputado(a)',
+              party: a.siglaPartido ?? null,
+              state: a.siglaUf ?? null,
+            },
+            client,
+          ));
       }
-    } catch (e: any) {
-      this.logger.error(`authors sync failed for ${externalPropId}: ${e.message}`);
-      throw e; // Bubble up to rollback transaction
+
+      const role = mapAuthorRole(a.tipo, a.proponente, a.ordemAssinatura);
+      const { isNew } = await this.props.upsertAuthor(
+        propositionId,
+        dep.id,
+        role,
+        a.ordemAssinatura ?? null,
+        client,
+      );
+
+      if (isNew && role === 'rapporteur' && dep.id === targetDeputyId) {
+        events.push({
+          type: 'NEW_RAPPORTEUR',
+          aggregateType: 'proposition',
+          aggregateId: propositionId,
+          payload: { deputy_id: dep.id },
+        });
+        count++;
+      }
     }
+
     return { count, events };
   }
 
@@ -433,12 +469,16 @@ export class IngestionService {
     }
   }
 
-  private async syncProceedings(propositionId: number, externalPropId: number, client: import('pg').PoolClient) {
-    try {
-      const items = await this.api.getPropositionProceedings(externalPropId);
-      for (const t of items) {
-        try {
-          await this.props.insertProceeding({
+  private async persistProceedings(
+    propositionId: number,
+    externalPropId: number,
+    items: any[],
+    client: PoolClient,
+  ) {
+    for (const t of items) {
+      try {
+        await this.props.insertProceeding(
+          {
             proposition_id: propositionId,
             sequence: t.sequencia ?? null,
             description: t.descricaoTramitacao ?? t.despacho ?? null,
@@ -446,63 +486,64 @@ export class IngestionService {
             status_at_time: t.descricaoSituacao ?? null,
             date: t.dataHora ?? null,
             payload: t,
-          }, client);
-        } catch (e: any) {
-          this.logger.error(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
-          throw e; // Bubble up to trigger transaction rollback
-        }
+          },
+          client,
+        );
+      } catch (e: any) {
+        this.logger.error(`proceeding insert failed for ${externalPropId} seq=${t.sequencia}: ${e.message}`);
+        throw e;
       }
-    } catch (e: any) {
-      this.logger.error(`proceedings sync failed for ${externalPropId}: ${e.message}`);
-      throw e;
     }
   }
 
-  private async syncVotes(propositionId: number, externalPropId: number, targetDeputyId: number, client: import('pg').PoolClient) {
+  private async persistVotes(
+    propositionId: number,
+    votingDetailsList: Array<{ voting: any; detalhes: any[] }>,
+    targetDeputyId: number,
+    client: PoolClient,
+  ) {
     let count = 0;
     const events: Array<{ type: string; aggregateType: string; aggregateId: number; payload: any }> = [];
-    try {
-      const votings = await this.api.getPropositionVotes(externalPropId);
-      for (const v of votings) {
-        const detalhes = await this.api.getVoteDetails(v.id).catch((e: any) => {
-          this.logger.warn(`getVoteDetails failed for voting ${v.id}: ${e.message}`);
-          return [];
-        });
-        for (const det of detalhes) {
-          const externalId = det.deputado_?.id;
-          if (!externalId) continue;
 
-          let dep = await this.deputies.findByExternalId(externalId);
-          if (!dep) {
-            dep = await this.deputies.upsert({
+    for (const { voting: v, detalhes } of votingDetailsList) {
+      for (const det of detalhes) {
+        const externalId = det.deputado_?.id;
+        if (!externalId) continue;
+
+        let dep = await this.deputies.findByExternalId(externalId, client);
+        if (!dep) {
+          dep = await this.deputies.upsert(
+            {
               external_id: externalId,
               name: det.deputado_?.nome ?? 'Deputado(a)',
-            }, client);
-          }
+            },
+            client,
+          );
+        }
 
-          const { isNew } = await this.votes.upsert({
+        const { isNew } = await this.votes.upsert(
+          {
             proposition_id: propositionId,
             deputy_id: dep.id,
             vote: det.tipoVoto ?? 'Desconhecido',
             session_id: String(v.id),
             date: v.dataHoraRegistro ?? v.data ?? null,
             payload: { voting: v, detail: det },
-          }, client);
-          if (isNew && dep.id === targetDeputyId) {
-            events.push({
-              type: 'NEW_VOTE',
-              aggregateType: 'vote',
-              aggregateId: propositionId,
-              payload: { vote: det.tipoVoto, session_id: v.id },
-            });
-            count++;
-          }
+          },
+          client,
+        );
+        if (isNew && dep.id === targetDeputyId) {
+          events.push({
+            type: 'NEW_VOTE',
+            aggregateType: 'vote',
+            aggregateId: propositionId,
+            payload: { vote: det.tipoVoto, session_id: v.id },
+          });
+          count++;
         }
       }
-    } catch (e: any) {
-      this.logger.error(`votes sync failed for ${externalPropId}: ${e.message}`);
-      throw e;
     }
+
     return { count, events };
   }
 }

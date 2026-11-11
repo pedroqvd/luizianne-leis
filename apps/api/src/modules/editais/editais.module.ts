@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PncpApiClient } from './pncp-api.client';
 import { EditaisRepository } from './editais.repository';
+import { EditaisMatchingService } from './editais-matching.service';
 import { EditaisService } from './editais.service';
 import { EditaisController } from './editais.controller';
 import { EditaisIngestion } from './editais.ingestion';
@@ -13,10 +14,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
   providers: [
     PncpApiClient,
     EditaisRepository,
+    EditaisMatchingService,
     EditaisService,
     EditaisIngestion,
     EditaisAlerts,
   ],
-  exports: [EditaisService, EditaisIngestion],
+  exports: [EditaisService, EditaisMatchingService, EditaisIngestion],
 })
 export class EditaisModule {}

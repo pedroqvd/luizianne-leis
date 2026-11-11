@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { Timeline } from '@/components/Timeline';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, FileText, Users, GitBranch, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 
@@ -37,11 +38,6 @@ function statusIcon(s?: string | null) {
   if (STATUS_APPROVED.some((x) => l.includes(x))) return <CheckCircle className="w-3.5 h-3.5 text-green-500" />;
   if (STATUS_REJECTED.some((x) => l.includes(x))) return <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
   return null;
-}
-
-function fmt(d?: string | null) {
-  if (!d) return '—';
-  return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default async function LegislativoDetailPage({ params }: { params: { id: string } }) {
@@ -135,26 +131,7 @@ export default async function LegislativoDetailPage({ params }: { params: { id: 
             Tramitação ({data.proceedings?.length ?? 0} eventos)
           </h2>
         </div>
-        {(data.proceedings?.length ?? 0) > 0 ? (
-          <ol className="relative border-l-2 border-slate-100 ml-2 space-y-0">
-            {data.proceedings.map((p, idx) => (
-              <li key={p.id} className="ml-5 pb-5 last:pb-0">
-                <span className={`absolute -left-[9px] mt-1 h-4 w-4 rounded-full border-2 border-white ${idx === 0 ? 'bg-brand-600' : 'bg-slate-300'}`} />
-                <div className="space-y-0.5">
-                  <time className="text-[11px] text-slate-400 font-medium">{fmt(p.date)}</time>
-                  <p className="text-sm text-slate-700 leading-snug">{p.description ?? '—'}</p>
-                  {p.status_at_time && (
-                    <span className="text-[11px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 inline-block">
-                      {p.status_at_time}
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-sm text-slate-400 py-4 text-center">Sem tramitação registrada.</p>
-        )}
+        <Timeline items={data.proceedings ?? []} />
       </section>
     </article>
   );

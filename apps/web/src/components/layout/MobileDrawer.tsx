@@ -1,31 +1,41 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import {
   LayoutDashboard, ScrollText, Landmark, BarChart3,
   Activity, Users, LogOut, Vote, Building2, FileSearch,
-  MapPin, ClipboardList, Mic, Receipt, Flag, X,
+  MapPin, ClipboardList, Mic, Receipt, Flag, Handshake, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { ALL_TABS, type TabSlug } from '@/lib/navigation';
+
+const ICON_BY_SLUG: Record<TabSlug, any> = {
+  articulacao: Handshake,
+  editais:     FileSearch,
+  emendas:     Landmark,
+  demandas:    ClipboardList,
+  legislativo: ScrollText,
+  votes:       Vote,
+  comissoes:   Building2,
+  analytics:   BarChart3,
+  atividade:   Activity,
+  despesas:    Receipt,
+  discursos:   Mic,
+  frentes:     Flag,
+  presenca:    MapPin,
+};
 
 const navItems = [
-  { href: '/',            label: 'Dashboard',    icon: LayoutDashboard, slug: null },
-  { href: '/legislativo', label: 'Legislativo',  icon: ScrollText,      slug: 'legislativo' },
-  { href: '/emendas',     label: 'Emendas',      icon: Landmark,        slug: 'emendas' },
-  { href: '/votes',       label: 'Votações',     icon: Vote,            slug: 'votes' },
-  { href: '/comissoes',   label: 'Comissões',    icon: Building2,       slug: 'comissoes' },
-  { href: '/editais',     label: 'Editais',      icon: FileSearch,      slug: 'editais' },
-  { href: '/analytics',   label: 'Analytics',    icon: BarChart3,       slug: 'analytics' },
-  { href: '/atividade',   label: 'Atividade',    icon: Activity,        slug: 'atividade' },
-  { href: '/despesas',    label: 'CEAP',         icon: Receipt,         slug: 'despesas' },
-  { href: '/discursos',   label: 'Discursos',    icon: Mic,             slug: 'discursos' },
-  { href: '/frentes',     label: 'Frentes Parl.',icon: Flag,            slug: 'frentes' },
-  { href: '/presenca',    label: 'Presença',     icon: MapPin,          slug: 'presenca' },
-  { href: '/demandas',    label: 'Demandas',     icon: ClipboardList,   slug: 'demandas' },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, slug: null as TabSlug | null },
+  ...ALL_TABS.map((t) => ({
+    href: t.href,
+    label: t.label,
+    icon: ICON_BY_SLUG[t.slug] ?? FileSearch,
+    slug: t.slug as TabSlug | null,
+  })),
 ];
 
 interface Props {
@@ -40,19 +50,19 @@ export function MobileDrawer({ open, onClose, isAdmin = false, allowedTabs = nul
   const router = useRouter();
   const supabase = createClient();
 
-  // Close drawer on route change
   useEffect(() => {
     onClose();
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Prevent body scroll when drawer is open
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
   async function handleLogout() {
@@ -74,7 +84,6 @@ export function MobileDrawer({ open, onClose, isAdmin = false, allowedTabs = nul
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className={cn(
           'lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-200',
@@ -84,14 +93,12 @@ export function MobileDrawer({ open, onClose, isAdmin = false, allowedTabs = nul
         aria-hidden="true"
       />
 
-      {/* Drawer panel */}
       <div
         className={cn(
           'lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-sidebar-bg flex flex-col transform transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
           <span className="text-white font-semibold text-sm">Menu</span>
           <button
@@ -102,7 +109,6 @@ export function MobileDrawer({ open, onClose, isAdmin = false, allowedTabs = nul
           </button>
         </div>
 
-        {/* Nav items */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 px-2 mb-2">
             Navegação
@@ -118,16 +124,17 @@ export function MobileDrawer({ open, onClose, isAdmin = false, allowedTabs = nul
                   : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white',
               )}
             >
-              <Icon className={cn(
-                'w-4 h-4 flex-shrink-0',
-                isActive(href) ? 'text-brand-400' : 'text-sidebar-text',
-              )} />
+              <Icon
+                className={cn(
+                  'w-4 h-4 flex-shrink-0',
+                  isActive(href) ? 'text-brand-400' : 'text-sidebar-text',
+                )}
+              />
               <span>{label}</span>
             </Link>
           ))}
         </nav>
 
-        {/* Bottom */}
         <div className="px-3 py-4 border-t border-white/10 space-y-0.5">
           {isAdmin && (
             <Link

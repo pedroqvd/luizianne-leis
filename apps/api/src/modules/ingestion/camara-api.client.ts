@@ -317,21 +317,6 @@ export class CamaraApiClient {
     return { items: data?.dados ?? [], links: data?.links ?? [] };
   }
 
-  /** Iterador assíncrono que segue links HATEOAS `rel=next`. */
-  async *iterAuthoredPropositions(
-    deputyId: number,
-    itens = 100,
-  ): AsyncGenerator<CamaraPropositionListItem> {
-    let page = 1;
-    while (page <= 500) { // circuit breaker guard
-      const { items, links } = await this.listAuthoredPropositions(deputyId, page, itens);
-      for (const item of items) yield item;
-      const hasNext = links.some((l) => l.rel === 'next');
-      if (!hasNext || items.length < itens) return;
-      page += 1;
-    }
-  }
-
   async getProposition(id: number): Promise<CamaraPropositionDetail | null> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraPropositionDetail>>(
       `/proposicoes/${id}`,

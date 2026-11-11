@@ -7,7 +7,10 @@ import { Deputy } from '../../../shared/types';
 export class DeputyRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async findByExternalId(externalId: number, db: import('pg').Pool | import('pg').PoolClient = this.pool): Promise<Deputy | null> {
+  async findByExternalId(
+    externalId: number,
+    db: import('pg').Pool | import('pg').PoolClient = this.pool,
+  ): Promise<Deputy | null> {
     const { rows } = await db.query(
       `SELECT id, external_id, name, party, state, photo_url
          FROM deputies WHERE external_id = $1 LIMIT 1`,
@@ -16,27 +19,9 @@ export class DeputyRepository {
     return rows[0] ?? null;
   }
 
-  async findById(id: number): Promise<Deputy | null> {
-    const { rows } = await this.pool.query(
-      `SELECT id, external_id, name, party, state, photo_url
-         FROM deputies WHERE id = $1 LIMIT 1`,
-      [id],
-    );
-    return rows[0] ?? null;
-  }
-
-  async findByName(name: string): Promise<Deputy | null> {
-    const { rows } = await this.pool.query(
-      `SELECT id, external_id, name, party, state, photo_url
-         FROM deputies WHERE name ILIKE $1 ORDER BY id LIMIT 1`,
-      [name],
-    );
-    return rows[0] ?? null;
-  }
-
   async upsert(
     d: Partial<Deputy> & { external_id: number; name: string; payload?: any },
-    db: import('pg').Pool | import('pg').PoolClient = this.pool
+    db: import('pg').Pool | import('pg').PoolClient = this.pool,
   ): Promise<Deputy> {
     const { rows } = await db.query(
       `INSERT INTO deputies (external_id, name, party, state, photo_url, payload, updated_at)

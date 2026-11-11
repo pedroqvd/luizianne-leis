@@ -2,18 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { updateTabPermission } from '@/app/(app)/actions/permissions';
+import { ALL_TABS } from '@/lib/navigation';
 
-export const ALL_TABS = [
-  { slug: 'legislativo', label: 'Legislativo' },
-  { slug: 'emendas',     label: 'Emendas' },
-  { slug: 'votes',       label: 'Votações' },
-  { slug: 'comissoes',   label: 'Comissões' },
-  { slug: 'editais',     label: 'Editais' },
-  { slug: 'analytics',   label: 'Analytics' },
-  { slug: 'atividade',   label: 'Atividade' },
-  { slug: 'presenca',    label: 'Presença' },
-  { slug: 'demandas',    label: 'Demandas' },
-];
+export { ALL_TABS };
 
 interface Props {
   userId: string;

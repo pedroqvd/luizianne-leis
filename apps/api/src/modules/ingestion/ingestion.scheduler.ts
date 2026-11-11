@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { Pool } from 'pg';
+import { PG_POOL } from '../../infra/database/database.module';
 import { IngestionQueue } from './ingestion.queue';
 import { AbsenceTrackerService } from './absence-tracker.service';
 import { LawsAlertService } from './laws-alert.service';
@@ -9,29 +11,18 @@ export class IngestionScheduler {
   private readonly logger = new Logger(IngestionScheduler.name);
 
   constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
     private readonly queue: IngestionQueue,
     private readonly absence: AbsenceTrackerService,
     private readonly laws: LawsAlertService,
   ) {}
 
-  /**
-   * Sincronização completa: proposições, relatorias, tramitações, votos.
-   * Default: 2× ao dia (6h e 18h) em vez de a cada 30 min.
-   * Cada full sync pode fazer centenas de requisições à API da Câmara.
-   * Rode mais frequente via INGESTION_CRON se necessário (ex.: "0 *\/2 * * *" = a cada 2h).
-   */
   @Cron(process.env.INGESTION_CRON ?? '0 6,18 * * *')
   async tick() {
     this.logger.log('cron tick — enqueue full sync');
     await this.queue.enqueueFullSync();
   }
 
-  /**
-   * Verificação de ausências em votações nominais.
-   * Default: 1× ao dia (às 20h, após encerramento das sessões).
-   * Usa janela de 3 dias para cobrir sessões noturnas e feriados.
-   * Rode mais frequente via ABSENCE_CRON se necessário.
-   */
   @Cron(process.env.ABSENCE_CRON ?? '0 20 * * *')
   async absenceTick() {
     this.logger.log('cron tick — checking absences in nominal votes');
@@ -43,7 +34,6 @@ export class IngestionScheduler {
     }
   }
 
-  /** Alerta de leis aprovadas — toda segunda-feira às 09h */
   @Cron(process.env.LAWS_ALERT_CRON ?? '0 9 * * 1')
   async lawsAlertTick() {
     this.logger.log('cron tick — checking approved laws');
@@ -52,6 +42,20 @@ export class IngestionScheduler {
       this.logger.log(`laws alert: ${result.found} aprovadas encontradas`);
     } catch (e: any) {
       this.logger.error(`laws alert failed: ${e.message}`);
+    }
+  }
+
+  /** Limpeza diária de eventos antigos (system_events > 90d, outbox_events processados > 30d) */
+  @Cron('0 2 * * *')
+  async purgeOldEventsTick() {
+    try {
+      const { rows } = await this.pool.query('SELECT purge_old_events(90) AS purged');
+      const purged = rows[0]?.purged ?? 0;
+      if (purged > 0) {
+        this.logger.log(`purged ${purged} old event rows`);
+      }
+    } catch (e: any) {
+      this.logger.warn(`purgeOldEventsTick failed: ${e.message}`);
     }
   }
 }

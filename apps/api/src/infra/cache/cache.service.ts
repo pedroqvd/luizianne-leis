@@ -69,7 +69,17 @@ export class CacheService {
       }
     }
 
-    // In-memory fallback
+    // In-memory fallback (bounded to 1000 keys to prevent memory exhaustion)
+    if (this.memCache.size >= 1000 && !this.memCache.has(key)) {
+      const now = Date.now();
+      for (const [k, v] of this.memCache.entries()) {
+        if (v.expiresAt < now) this.memCache.delete(k);
+      }
+      if (this.memCache.size >= 1000) {
+        const oldestKey = this.memCache.keys().next().value;
+        if (oldestKey) this.memCache.delete(oldestKey);
+      }
+    }
     this.memCache.set(key, { value: serialized, expiresAt: Date.now() + ttl * 1000 });
   }
 

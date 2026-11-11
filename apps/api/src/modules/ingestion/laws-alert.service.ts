@@ -18,7 +18,7 @@ const APPROVED_STATUSES = [
 
 /**
  * Detecta semanalmente proposições que mudaram para status de "aprovada"
- * e emite eventos LAW_APPROVED para notificação por e-mail.
+ * e emite eventos LAW_APPROVED (de forma idempotente) para notificação por e-mail.
  */
 @Injectable()
 export class LawsAlertService {
@@ -30,7 +30,6 @@ export class LawsAlertService {
   ) {}
 
   async checkApprovedLaws(): Promise<{ found: number }> {
-    // Proposições da deputada que ficaram aprovadas na última semana
     const since = new Date();
     since.setDate(since.getDate() - 7);
 
@@ -44,7 +43,14 @@ export class LawsAlertService {
             AND se.aggregate_id = p.id
             AND se.type = 'STATUS_CHANGED'
             AND se.created_at >= $2
-         WHERE ${APPROVED_STATUSES.map((s, i) => `p.status ILIKE $${i + 3}`).join(' OR ')}`,
+         WHERE (${APPROVED_STATUSES.map((_, i) => `p.status ILIKE $${i + 3}`).join(' OR ')})
+           AND NOT EXISTS (
+             SELECT 1
+               FROM system_events se_dup
+              WHERE se_dup.aggregate_type = 'proposition'
+                AND se_dup.aggregate_id = p.id
+                AND se_dup.type = 'LAW_APPROVED'
+           )`,
       [
         Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866),
         since.toISOString(),
@@ -53,7 +59,7 @@ export class LawsAlertService {
     );
 
     for (const row of rows) {
-      this.events.emit({
+      await this.events.emit({
         type: 'LAW_APPROVED',
         aggregateType: 'proposition',
         aggregateId: row.id,

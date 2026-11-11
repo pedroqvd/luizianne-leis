@@ -10,7 +10,6 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
-  // FIX #25: CORS não permite '*' por padrão — exige CORS_ORIGINS explícito em produção
   const isProduction = process.env.NODE_ENV === 'production';
   let corsOrigin: boolean | string[];
   if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
@@ -32,12 +31,30 @@ async function bootstrap() {
     },
   });
 
+  // Confia no reverse proxy (Render/Cloudflare) para rate-limiting por IP real e desativa X-Powered-By
+  const httpAdapter = app.getHttpAdapter().getInstance();
+  if (httpAdapter && typeof httpAdapter.set === 'function') {
+    httpAdapter.set('trust proxy', 1);
+    httpAdapter.disable('x-powered-by');
+  }
+
+  // Headers de segurança HTTP
+  app.use((_req: any, res: any, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (isProduction) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
   app.setGlobalPrefix('api', { exclude: ['health'] });
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      // FIX #11 (ALTO): Rejeita propriedades não previstas no DTO
       forbidNonWhitelisted: true,
     }),
   );
@@ -45,8 +62,8 @@ async function bootstrap() {
   if (process.env.NODE_ENV !== 'production' || process.env.SWAGGER_ENABLED === 'true') {
     const config = new DocumentBuilder()
       .setTitle('Luizianne Leis — Core API')
-      .setDescription('Plataforma de transparência legislativa')
-      .setVersion('0.1.0')
+      .setDescription('Plataforma de transparência e inteligência legislativa')
+      .setVersion('0.2.0')
       .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, config);
