@@ -36,18 +36,25 @@ export class CeapIngestion {
     }
     this.running = true;
 
-    const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
-    const deputy = await this.deputies.findByExternalId(externalId);
-    if (!deputy) {
-      this.logger.warn(`Deputy external_id=${externalId} not found — run ingest first`);
-      this.running = false;
-      return { inserted: 0, errors: 0 };
-    }
-
     let inserted = 0;
     let errors = 0;
 
     try {
+      const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
+      let deputy = await this.deputies.findByExternalId(externalId);
+      if (!deputy) {
+        const raw = await this.api.getDeputy(externalId).catch(() => null);
+        const status = raw?.ultimoStatus;
+        deputy = await this.deputies.upsert({
+          external_id: externalId,
+          name: status?.nome ?? raw?.nomeCivil ?? 'Luizianne Lins',
+          party: status?.siglaPartido ?? 'PT',
+          state: status?.siglaUf ?? 'CE',
+          photo_url: status?.urlFoto ?? undefined,
+          payload: raw ?? null,
+        });
+      }
+
       this.logger.log(`CEAP sync start: externalId=${externalId} anoInicio=${anoInicio}`);
       for await (const item of this.api.iterDeputyExpenses(externalId, anoInicio)) {
         try {

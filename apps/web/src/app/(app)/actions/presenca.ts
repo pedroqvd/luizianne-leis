@@ -15,6 +15,47 @@ const ALLOWED_TYPES = new Set([
   'outro',
 ]);
 
+const ALLOWED_MIMES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+export async function uploadPresencePhoto(formData: FormData): Promise<string> {
+  await requireTabAccess('presenca', { isAction: true });
+
+  const file = formData.get('photo') as File | null;
+  if (!file) throw new Error('Nenhum arquivo enviado');
+
+  const safeExt = ALLOWED_MIMES[file.type];
+  if (!safeExt) {
+    throw new Error('Formato de imagem inválido. Use JPG, PNG ou WEBP.');
+  }
+  if (file.size > MAX_PHOTO_BYTES) {
+    throw new Error('A imagem deve ter no máximo 5 MB.');
+  }
+
+  const admin = createAdminClient();
+  await admin.storage
+    .createBucket('presence-photos', { public: true, fileSizeLimit: MAX_PHOTO_BYTES })
+    .catch(() => undefined);
+
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${safeExt}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  const { error: uploadError } = await admin.storage
+    .from('presence-photos')
+    .upload(path, bytes, { upsert: false, contentType: file.type });
+
+  if (uploadError) {
+    throw new Error(`Erro ao enviar foto: ${uploadError.message}`);
+  }
+
+  const { data } = admin.storage.from('presence-photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export async function createPresenceRecord(data: {
   location: 'brasilia' | 'fortaleza';
   date: string;

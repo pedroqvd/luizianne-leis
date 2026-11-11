@@ -63,28 +63,57 @@ export class AdminController implements OnApplicationBootstrap {
   }
 
   private async autoBootstrapEmptyDatabase() {
-    const { rows: editalRows } = await this.pool.query(
-      'SELECT COUNT(*)::int AS cnt FROM editais',
-    );
-    if ((editalRows[0]?.cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty editais table detected — starting initial PNCP sync in background...');
+    const { rows } = await this.pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM editais)               AS editais_cnt,
+        (SELECT COUNT(*)::int FROM propositions)          AS props_cnt,
+        (SELECT COUNT(*)::int FROM frentes_parlamentares) AS frentes_cnt,
+        (SELECT COUNT(*)::int FROM discursos)             AS discursos_cnt,
+        (SELECT COUNT(*)::int FROM ceap_despesas)         AS ceap_cnt,
+        (SELECT COUNT(*)::int FROM emendas_orcamentarias) AS emendas_cnt
+    `);
+    const counts = rows[0] ?? {};
+
+    if ((counts.editais_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty editais table — starting initial PNCP sync...');
       this.editaisIngestion.ingest().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Editais initial sync failed: ${e.message}`),
+        this.logger.warn(`[AutoBootstrap] Editais sync failed: ${e.message}`),
       );
     }
 
-    const { rows: propRows } = await this.pool.query(
-      'SELECT COUNT(*)::int AS cnt FROM propositions',
-    );
-    if ((propRows[0]?.cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty propositions table detected — starting initial Câmara/Emendas/CEAP/Discursos/Frentes sync in background...');
-      await this.queue.enqueueFullSync().catch((e) =>
+    if ((counts.props_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty propositions table — starting initial Câmara sync...');
+      this.queue.enqueueFullSync().catch((e) =>
         this.logger.warn(`[AutoBootstrap] Full sync failed: ${e.message}`),
       );
-      this.frentesIngestion.sync().catch(() => undefined);
-      this.discursosIngestion.syncRecent().catch(() => undefined);
-      this.ceapIngestion.syncRecent().catch(() => undefined);
-      this.emendasIngestion.ingest().catch(() => undefined);
+    }
+
+    if ((counts.frentes_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty frentes_parlamentares table — starting initial sync...');
+      this.frentesIngestion.sync().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] Frentes sync failed: ${e.message}`),
+      );
+    }
+
+    if ((counts.discursos_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty discursos table — starting initial sync...');
+      this.discursosIngestion.syncHistorical().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] Discursos sync failed: ${e.message}`),
+      );
+    }
+
+    if ((counts.ceap_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty ceap_despesas table — starting initial sync...');
+      this.ceapIngestion.syncRecent().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] CEAP sync failed: ${e.message}`),
+      );
+    }
+
+    if ((counts.emendas_cnt ?? 0) === 0) {
+      this.logger.log('[AutoBootstrap] Empty emendas_orcamentarias table — starting initial sync...');
+      this.emendasIngestion.ingest().catch((e) =>
+        this.logger.warn(`[AutoBootstrap] Emendas sync failed: ${e.message}`),
+      );
     }
   }
 

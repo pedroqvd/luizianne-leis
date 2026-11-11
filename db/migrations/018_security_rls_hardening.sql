@@ -338,3 +338,25 @@ BEGIN
     EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon';
   END IF;
 END $$;
+
+-- ── 8. Garantir Bucket presence-photos no Supabase Storage ─────────────────
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'storage' AND table_name = 'buckets'
+  ) THEN
+    INSERT INTO storage.buckets (id, name, public)
+    VALUES ('presence-photos', 'presence-photos', true)
+    ON CONFLICT (id) DO NOTHING;
+
+    EXECUTE 'DROP POLICY IF EXISTS policy_presence_photos_read ON storage.objects';
+    EXECUTE 'CREATE POLICY policy_presence_photos_read ON storage.objects FOR SELECT USING (bucket_id = ''presence-photos'')';
+
+    EXECUTE 'DROP POLICY IF EXISTS policy_presence_photos_insert ON storage.objects';
+    EXECUTE 'CREATE POLICY policy_presence_photos_insert ON storage.objects FOR INSERT WITH CHECK (bucket_id = ''presence-photos'' AND public.current_auth_uid() IS NOT NULL)';
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  -- Non-fatal in non-Supabase local Postgres
+  NULL;
+END $$;

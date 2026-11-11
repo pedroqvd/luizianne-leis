@@ -21,11 +21,63 @@ export async function getUserAccessContext(): Promise<UserAccessContext> {
     }
 
     const admin = createAdminClient();
-    const { data: profile } = await admin
+    const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const userEmailLower = user.email?.trim().toLowerCase() ?? '';
+
+    let { data: profile } = await admin
       .from('app_users')
-      .select('role')
+      .select('id, role, name')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
+
+    if (!profile && user.email) {
+      const { count } = await admin
+        .from('app_users')
+        .select('*', { count: 'exact', head: true });
+
+      const role =
+        count === 0 || (adminEmail && userEmailLower === adminEmail)
+          ? 'admin'
+          : 'member';
+
+      const candidateName =
+        user.user_metadata?.full_name?.trim() || user.email.split('@')[0];
+
+      const { data: inserted } = await admin
+        .from('app_users')
+        .upsert(
+          {
+            id: user.id,
+            email: user.email,
+            name: candidateName,
+            role,
+          },
+          { onConflict: 'id' },
+        )
+        .select('id, role, name')
+        .single();
+
+      profile = inserted ?? { id: user.id, role, name: candidateName };
+
+      const { data: areas } = await admin.from('notification_areas').select('id');
+      if (areas?.length) {
+        await admin.from('user_subscriptions').upsert(
+          areas.map((a) => ({ user_id: user.id, area_id: a.id, enabled: false })),
+          { onConflict: 'user_id,area_id', ignoreDuplicates: true },
+        );
+      }
+    } else if (
+      profile &&
+      adminEmail &&
+      userEmailLower === adminEmail &&
+      profile.role !== 'admin'
+    ) {
+      await admin
+        .from('app_users')
+        .update({ role: 'admin' })
+        .eq('id', user.id);
+      profile = { ...profile, role: 'admin' };
+    }
 
     const isAdmin = profile?.role === 'admin';
     if (isAdmin) {

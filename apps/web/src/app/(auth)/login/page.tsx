@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { setupUser } from '@/app/auth/actions';
 import { Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
@@ -25,10 +26,11 @@ export default function LoginPage() {
       password,
     });
 
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError('E-mail ou senha incorretos.');
     } else {
+      await setupUser().catch(() => undefined);
       window.location.href = '/';
     }
   }

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { createPresenceRecord } from '@/app/(app)/actions/presenca';
-import { createClient } from '@/lib/supabase/client';
+import { createPresenceRecord, uploadPresencePhoto } from '@/app/(app)/actions/presenca';
 import Image from 'next/image';
 import { MapPin, Calendar, Camera, X, Loader2 } from 'lucide-react';
 
@@ -61,18 +60,9 @@ export function PresenceForm({ onClose }: Props) {
       try {
         let photo_url: string | undefined;
         if (photoFile) {
-          const safeExt = ALLOWED_MIMES[photoFile.type] ?? 'jpg';
-          const supabase = createClient();
-          const path = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${safeExt}`;
-          const { error: uploadError } = await supabase.storage
-            .from('presence-photos')
-            .upload(path, photoFile, { upsert: false, contentType: photoFile.type });
-          if (uploadError) {
-            setError(`Erro ao enviar foto: ${uploadError.message}`);
-            return;
-          }
-          const { data } = supabase.storage.from('presence-photos').getPublicUrl(path);
-          photo_url = data.publicUrl;
+          const fd = new FormData();
+          fd.set('photo', photoFile);
+          photo_url = await uploadPresencePhoto(fd);
         }
         const record = await createPresenceRecord({ location, date, type, notes: notes || undefined, photo_url });
         onClose(record);

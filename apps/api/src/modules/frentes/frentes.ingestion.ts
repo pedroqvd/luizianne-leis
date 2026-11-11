@@ -37,10 +37,18 @@ export class FrentesIngestion {
 
     try {
       const externalId = Number(process.env.TARGET_DEPUTY_EXTERNAL_ID ?? 178866);
-      const deputy = await this.deputies.findByExternalId(externalId);
+      let deputy = await this.deputies.findByExternalId(externalId);
       if (!deputy) {
-        this.logger.warn(`deputy ${externalId} not found — skipping frentes sync`);
-        return { synced: 0 };
+        const raw = await this.api.getDeputy(externalId).catch(() => null);
+        const status = raw?.ultimoStatus;
+        deputy = await this.deputies.upsert({
+          external_id: externalId,
+          name: status?.nome ?? raw?.nomeCivil ?? 'Luizianne Lins',
+          party: status?.siglaPartido ?? 'PT',
+          state: status?.siglaUf ?? 'CE',
+          photo_url: status?.urlFoto ?? undefined,
+          payload: raw ?? null,
+        });
       }
 
       const fronts = await this.api.getDeputyFronts(externalId);

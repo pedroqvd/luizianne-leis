@@ -1,6 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { requireAdminAccess } from '@/lib/auth-guard';
 import { InviteForm } from './InviteForm';
 import { SubscriptionToggles } from './SubscriptionToggles';
 import { MemberActions } from './MemberActions';
@@ -37,22 +35,7 @@ interface TabPerm {
 }
 
 export default async function EquipePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const admin = createAdminClient();
-
-  // Verify admin role
-  const { data: profile } = await admin
-    .from('app_users')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    redirect('/');
-  }
+  const { userId: currentUserId, admin } = await requireAdminAccess();
 
   const [{ data: users }, { data: areas }, { data: subscriptions }, { data: tabPerms }] = await Promise.all([
     admin.from('app_users').select('*').order('created_at'),
@@ -165,7 +148,7 @@ export default async function EquipePage() {
                       <MemberActions
                         userId={m.id}
                         currentRole={m.role}
-                        isSelf={m.id === user.id}
+                        isSelf={m.id === currentUserId}
                       />
                     </td>
                   </tr>
