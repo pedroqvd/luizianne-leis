@@ -1,9 +1,7 @@
 name: keep-alive
 
-# Pinga o /health do Render a cada 10 min para manter o free tier acordado.
-# Render dorme após 15 min de inatividade — esse cron evita o sleep.
-# Variável KEEP_ALIVE_URL configurada em Settings → Secrets and variables →
-# Actions → Variables (não é secret, pode ficar como variable mesmo).
+# Pinga o /health e o /api/admin/auto-sync do Render a cada 10 min para manter
+# o free tier acordado e acionar sincronização inteligente de qualquer aba desatualizada.
 
 on:
   schedule:
@@ -17,20 +15,23 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping API health endpoint
+      - name: Ping API health & Smart Auto-Sync
         env:
-          URL: ${{ vars.KEEP_ALIVE_URL }}
+          BASE_URL: ${{ vars.KEEP_ALIVE_URL || 'https://luizianne-leis.onrender.com' }}
         run: |
-          if [ -z "$URL" ]; then
-            echo "::warning::KEEP_ALIVE_URL not set; skipping."
-            exit 0
-          fi
-          echo "Pinging $URL"
+          CLEAN_BASE="${BASE_URL%/}"
+          CLEAN_BASE="${CLEAN_BASE%/health}"
+          HEALTH_URL="${CLEAN_BASE}/health"
+          SYNC_URL="${CLEAN_BASE}/api/admin/auto-sync"
+          echo "Pinging $HEALTH_URL and $SYNC_URL"
           for i in 1 2 3; do
-            code=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 60 "$URL" || echo "000")
-            echo "attempt $i → HTTP $code"
+            code=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 60 "$HEALTH_URL" || echo "000")
+            echo "attempt $i (health) → HTTP $code"
             if [ "$code" = "200" ]; then
               cat /tmp/body
+              echo ""
+              curl -sS --max-time 60 "$SYNC_URL" || true
+              echo ""
               exit 0
             fi
             sleep $((i * 10))

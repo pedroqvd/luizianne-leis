@@ -34,6 +34,9 @@ export function RealtimeBadge() {
           : 'http://localhost:8000')
       ).replace(/\/+$/, '');
 
+      // Aciona silenciosamente o heartbeat / smart auto-sync da API ao abrir qualquer aba
+      fetch(`${base}/api/admin/auto-sync`, { cache: 'no-store' }).catch(() => undefined);
+
       let tokenParam = '';
       try {
         const supabase = createClient();
@@ -73,9 +76,19 @@ export function RealtimeBadge() {
     }
 
     void connect();
+    const keepAliveInterval = setInterval(() => {
+      const base = (
+        process.env.NEXT_PUBLIC_API_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://luizianne-leis.onrender.com'
+          : 'http://localhost:8000')
+      ).replace(/\/+$/, '');
+      fetch(`${base}/api/admin/auto-sync`, { cache: 'no-store' }).catch(() => undefined);
+    }, 8 * 60 * 1000);
 
     return () => {
       cancelled = true;
+      clearInterval(keepAliveInterval);
       if (reconnectTimer) clearTimeout(reconnectTimer);
       es?.close();
     };

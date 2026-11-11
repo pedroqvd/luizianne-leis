@@ -104,6 +104,11 @@ export class IngestionService {
           }
         }
 
+        if (page === 1) {
+          await this.refreshMaterializedViews().catch(() => undefined);
+          await this.cache.invalidate('analytics:*').catch(() => undefined);
+        }
+
         if (items.length < 100) break;
         page += 1;
       }
@@ -111,6 +116,7 @@ export class IngestionService {
       const relatorStats = await this.syncRelatorPropositions(deputy.id, depId, historicalIdMap);
       totalProps += relatorStats.propositions;
       totalEvents += relatorStats.events;
+      await this.refreshMaterializedViews().catch(() => undefined);
     }
 
     const commissionSiglas = (process.env.INGESTION_COMMISSION_SIGLAS ?? 'CMCVM')

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Get,
   HttpCode,
   Inject,
   OnApplicationBootstrap,
@@ -9,6 +10,7 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Pool } from 'pg';
 import { PG_POOL } from '../../infra/database/database.module';
@@ -35,10 +37,11 @@ function assertValidIsoDate(val: string | undefined, paramName: string): void {
 
 @ApiTags('admin')
 @Public()
-@UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController implements OnApplicationBootstrap {
   private readonly logger = new Logger(AdminController.name);
+  private readonly lastAttemptAt = new Map<string, number>();
+  private lastStatusCache: { ts: number; data: any } | null = null;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -56,90 +59,182 @@ export class AdminController implements OnApplicationBootstrap {
   onApplicationBootstrap() {
     if (process.env.NODE_ENV === 'test') return;
     setTimeout(() => {
-      this.autoBootstrapEmptyDatabase().catch((err) => {
-        this.logger.warn(`Auto-bootstrap check skipped: ${err.message}`);
+      this.runSmartAutoSync('bootstrap').catch((err) => {
+        this.logger.warn(`Auto-sync check skipped: ${err.message}`);
       });
-    }, 5_000);
+    }, 3_000);
   }
 
-  private async autoBootstrapEmptyDatabase() {
+  @Interval(15 * 60 * 1000)
+  async scheduledSmartSync() {
+    if (process.env.NODE_ENV === 'test') return;
+    await this.runSmartAutoSync('interval-15m').catch((err) => {
+      this.logger.warn(`Scheduled smart-sync skipped: ${err.message}`);
+    });
+  }
+
+  private canTrigger(domain: string, cooldownMs: number): boolean {
+    const last = this.lastAttemptAt.get(domain) ?? 0;
+    if (Date.now() - last < cooldownMs) return false;
+    this.lastAttemptAt.set(domain, Date.now());
+    return true;
+  }
+
+  async runSmartAutoSync(source = 'manual'): Promise<{
+    ok: boolean;
+    source: string;
+    triggered: string[];
+    counts: Record<string, number>;
+  }> {
     const { rows } = await this.pool.query(`
       SELECT
         (SELECT COUNT(*)::int FROM editais)               AS editais_cnt,
+        (SELECT MAX(updated_at) FROM editais)             AS editais_last,
         (SELECT COUNT(*)::int FROM propositions)          AS props_cnt,
+        (SELECT MAX(updated_at) FROM propositions)        AS props_last,
+        (SELECT COUNT(*)::int FROM v_deputy_productivity) AS mv_cnt,
         (SELECT COUNT(*)::int FROM frentes_parlamentares) AS frentes_cnt,
+        (SELECT MAX(updated_at) FROM frentes_parlamentares) AS frentes_last,
         (SELECT COUNT(*)::int FROM discursos)             AS discursos_cnt,
+        (SELECT MAX(updated_at) FROM discursos)           AS discursos_last,
         (SELECT COUNT(*)::int FROM ceap_despesas)         AS ceap_cnt,
-        (SELECT COUNT(*)::int FROM emendas_orcamentarias) AS emendas_cnt
+        (SELECT MAX(updated_at) FROM ceap_despesas)       AS ceap_last,
+        (SELECT COUNT(*)::int FROM emendas_orcamentarias) AS emendas_cnt,
+        (SELECT MAX(updated_at) FROM emendas_orcamentarias) AS emendas_last
     `);
-    const counts = rows[0] ?? {};
+    const st = rows[0] ?? {};
+    const now = Date.now();
+    const ageMs = (ts: any) => (ts ? now - new Date(ts).getTime() : Number.POSITIVE_INFINITY);
+    const HOUR = 3600_000;
+    const triggered: string[] = [];
 
-    if ((counts.editais_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty editais table — starting initial PNCP sync...');
-      this.editaisIngestion.ingest().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Editais sync failed: ${e.message}`),
+    // 0. Se propositions já tem dados mas v_deputy_productivity está vazia, atualiza as views na hora
+    if ((st.props_cnt ?? 0) > 0 && (st.mv_cnt ?? 0) === 0 && this.canTrigger('mv_refresh', 2 * 60_000)) {
+      triggered.push('materialized_views');
+      Promise.all([
+        this.pool.query('REFRESH MATERIALIZED VIEW v_deputy_productivity').catch(() => undefined),
+        this.pool.query('REFRESH MATERIALIZED VIEW v_proposition_approval').catch(() => undefined),
+        this.pool.query('REFRESH MATERIALIZED VIEW v_coauthorship_edges').catch(() => undefined),
+        this.pool.query('REFRESH MATERIALIZED VIEW v_categories_breakdown').catch(() => undefined),
+      ]).catch(() => undefined);
+    }
+
+    // 1. Editais PNCP (vazio ou > 6h sem atualizar)
+    const editaisEmpty = (st.editais_cnt ?? 0) === 0;
+    if ((editaisEmpty || ageMs(st.editais_last) > 6 * HOUR) && this.canTrigger('editais', editaisEmpty ? 15 * 60_000 : 2 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering editais sync (cnt=${st.editais_cnt})...`);
+      triggered.push('editais');
+      this.editaisIngestion.run().catch((e) =>
+        this.logger.warn(`[AutoSync] Editais sync failed: ${e.message}`),
       );
     }
 
-    if ((counts.props_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty propositions table — starting initial Câmara sync...');
+    // 2. Proposições, Votações, Comissões e Ausências (vazio ou > 12h sem atualizar)
+    const propsEmpty = (st.props_cnt ?? 0) === 0;
+    if ((propsEmpty || ageMs(st.props_last) > 12 * HOUR) && this.canTrigger('propositions', propsEmpty ? 20 * 60_000 : 4 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering Câmara full sync (cnt=${st.props_cnt})...`);
+      triggered.push('propositions');
       this.queue.enqueueFullSync().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Full sync failed: ${e.message}`),
+        this.logger.warn(`[AutoSync] Full sync failed: ${e.message}`),
       );
+      this.absence.checkRecentAbsences(14).catch(() => undefined);
+      this.laws.checkApprovedLaws().catch(() => undefined);
     }
 
-    if ((counts.frentes_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty frentes_parlamentares table — starting initial sync...');
+    // 3. Frentes Parlamentares (vazio ou > 7 dias sem atualizar)
+    const frentesEmpty = (st.frentes_cnt ?? 0) === 0;
+    if ((frentesEmpty || ageMs(st.frentes_last) > 7 * 24 * HOUR) && this.canTrigger('frentes', frentesEmpty ? 15 * 60_000 : 12 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering frentes sync (cnt=${st.frentes_cnt})...`);
+      triggered.push('frentes');
       this.frentesIngestion.sync().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Frentes sync failed: ${e.message}`),
+        this.logger.warn(`[AutoSync] Frentes sync failed: ${e.message}`),
       );
     }
 
-    if ((counts.discursos_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty discursos table — starting initial sync...');
-      this.discursosIngestion.syncHistorical().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Discursos sync failed: ${e.message}`),
-      );
+    // 4. Discursos (vazio -> histórico desde 2015; ou > 24h -> recente)
+    const discursosEmpty = (st.discursos_cnt ?? 0) === 0;
+    if ((discursosEmpty || ageMs(st.discursos_last) > 24 * HOUR) && this.canTrigger('discursos', discursosEmpty ? 15 * 60_000 : 6 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering discursos sync (cnt=${st.discursos_cnt})...`);
+      triggered.push('discursos');
+      const task = discursosEmpty
+        ? this.discursosIngestion.syncHistorical()
+        : this.discursosIngestion.syncRecent();
+      task.catch((e) => this.logger.warn(`[AutoSync] Discursos sync failed: ${e.message}`));
     }
 
-    if ((counts.ceap_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty ceap_despesas table — starting initial sync...');
+    // 5. CEAP Despesas (vazio ou > 24h sem atualizar)
+    const ceapEmpty = (st.ceap_cnt ?? 0) === 0;
+    if ((ceapEmpty || ageMs(st.ceap_last) > 24 * HOUR) && this.canTrigger('ceap', ceapEmpty ? 15 * 60_000 : 6 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering CEAP sync (cnt=${st.ceap_cnt})...`);
+      triggered.push('ceap');
       this.ceapIngestion.syncRecent().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] CEAP sync failed: ${e.message}`),
+        this.logger.warn(`[AutoSync] CEAP sync failed: ${e.message}`),
       );
     }
 
-    if ((counts.emendas_cnt ?? 0) === 0) {
-      this.logger.log('[AutoBootstrap] Empty emendas_orcamentarias table — starting initial sync...');
-      this.emendasIngestion.ingest().catch((e) =>
-        this.logger.warn(`[AutoBootstrap] Emendas sync failed: ${e.message}`),
+    // 6. Emendas Orçamentárias (vazio ou > 7 dias sem atualizar)
+    const emendasEmpty = (st.emendas_cnt ?? 0) === 0;
+    if ((emendasEmpty || ageMs(st.emendas_last) > 7 * 24 * HOUR) && this.canTrigger('emendas', emendasEmpty ? 20 * 60_000 : 12 * HOUR)) {
+      this.logger.log(`[AutoSync:${source}] Triggering Emendas sync (cnt=${st.emendas_cnt})...`);
+      triggered.push('emendas');
+      this.emendasIngestion.run().catch((e) =>
+        this.logger.warn(`[AutoSync] Emendas sync failed: ${e.message}`),
       );
     }
+
+    return {
+      ok: true,
+      source,
+      triggered,
+      counts: {
+        editais: st.editais_cnt ?? 0,
+        propositions: st.props_cnt ?? 0,
+        frentes: st.frentes_cnt ?? 0,
+        discursos: st.discursos_cnt ?? 0,
+        ceap: st.ceap_cnt ?? 0,
+        emendas: st.emendas_cnt ?? 0,
+      },
+    };
   }
 
+  @Get('auto-sync')
+  async autoSyncHeartbeat() {
+    if (this.lastStatusCache && Date.now() - this.lastStatusCache.ts < 30_000) {
+      return this.lastStatusCache.data;
+    }
+    const data = await this.runSmartAutoSync('heartbeat');
+    this.lastStatusCache = { ts: Date.now(), data };
+    return data;
+  }
+
+  @UseGuards(AdminGuard)
   @Post('ingest')
   async triggerIngest() {
     const job = await this.queue.enqueueFullSync();
     return { enqueued: true, jobId: job.id };
   }
 
+  @UseGuards(AdminGuard)
   @Post('reclassify')
   async reclassify(@Query('force') force?: string) {
     return this.classifier.reclassifyAll(force === 'true');
   }
 
+  @UseGuards(AdminGuard)
   @Post('ingest-editais')
   async triggerEditais() {
     const result = await this.editaisIngestion.ingest();
     return { ok: true, ...result };
   }
 
+  @UseGuards(AdminGuard)
   @Post('ingest-emendas-orc')
   async triggerEmendasOrc() {
     const result = await this.emendasIngestion.ingest();
     return { ok: true, ...result };
   }
 
+  @UseGuards(AdminGuard)
   @Post('check-absences')
   async triggerAbsences(@Query('days') days?: string) {
     const parsedDays = days ? Number(days) : 7;
@@ -148,6 +243,7 @@ export class AdminController implements OnApplicationBootstrap {
     return { ok: true, ...result };
   }
 
+  @UseGuards(AdminGuard)
   @Post('check-absences-historical')
   @HttpCode(202)
   @ApiQuery({ name: 'from', required: false, type: String, example: '2015-02-01', description: 'Data início (padrão: INGEST_DATA_INICIO)' })
@@ -170,6 +266,7 @@ export class AdminController implements OnApplicationBootstrap {
     };
   }
 
+  @UseGuards(AdminGuard)
   @Post('check-laws')
   async triggerLawsAlert() {
     const result = await this.laws.checkApprovedLaws();

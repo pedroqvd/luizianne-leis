@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { ProductivityChart } from '@/components/ProductivityChart';
 import { TypeBreakdown } from '@/components/TypeBreakdown';
 import { ProductivityHeatmap } from '@/components/ProductivityHeatmap';
+import { AutoSyncBanner } from '@/components/AutoSyncBanner';
 import { TrendingUp, FileText, Users, Award, AlertCircle, GitBranch } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
   }
 
   const prod = data?.productivity;
+  const isInitialSyncing = !data || (prod?.total_propositions ?? 0) === 0;
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -60,13 +62,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Offline warning */}
-      {!data && (
-        <div className="flex items-start gap-3 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-4">
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>Backend offline ou banco vazio. Verifique o Render e rode a ingestão.</span>
-        </div>
-      )}
+      {/* Automatic sync banner when waking up or populating initial data */}
+      <AutoSyncBanner initialEmpty={isInitialSyncing} />
 
       {/* KPI cards */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

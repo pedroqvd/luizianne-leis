@@ -15,7 +15,7 @@ export class AnalyticsService {
   ) {}
 
   async summary() {
-    return this.cache.wrap('analytics:summary', 120, async () => {
+    return this.cache.wrap('analytics:summary', 30, async () => {
       const d = await this.deputy.getTarget();
       const [{ rows: prod }, { rows: byType }, { rows: byYear }] = await Promise.all([
         this.pool.query(
@@ -44,17 +44,29 @@ export class AnalyticsService {
         ),
       ]);
 
-      const row = prod[0];
+      let row = prod[0];
+      if (!row || !row.total_propositions) {
+        const { rows: liveRows } = await this.pool.query(
+          `SELECT
+             COUNT(DISTINCT proposition_id)::int AS total_propositions,
+             COUNT(DISTINCT proposition_id) FILTER (WHERE role = 'author')::int AS as_author,
+             COUNT(DISTINCT proposition_id) FILTER (WHERE role = 'coauthor')::int AS as_coauthor,
+             COUNT(DISTINCT proposition_id) FILTER (WHERE role = 'rapporteur')::int AS as_rapporteur
+           FROM proposition_authors
+           WHERE deputy_id = $1`,
+          [d.id],
+        );
+        row = liveRows[0];
+      }
+
       return {
         deputy: d,
-        productivity: row
-          ? {
-              total_propositions: row.total_propositions,
-              authored: row.as_author,
-              coauthored: row.as_coauthor,
-              rapporteured: row.as_rapporteur,
-            }
-          : null,
+        productivity: {
+          total_propositions: row?.total_propositions ?? 0,
+          authored: row?.as_author ?? 0,
+          coauthored: row?.as_coauthor ?? 0,
+          rapporteured: row?.as_rapporteur ?? 0,
+        },
         by_type: byType,
         by_year: byYear,
       };
