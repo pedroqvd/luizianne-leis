@@ -334,7 +334,6 @@ export class CamaraApiClient {
   async getPropositionProceedings(id: number): Promise<CamaraProceeding[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraProceeding[]>>(
       `/proposicoes/${id}/tramitacoes`,
-      { params: { itens: 1000 } }, // FIX: API default truncates at ~100
     );
     return data?.dados ?? [];
   }
@@ -342,7 +341,6 @@ export class CamaraApiClient {
   async getPropositionVotes(id: number): Promise<CamaraVoting[]> {
     const { data } = await this.http.get<CamaraEnvelope<CamaraVoting[]>>(
       `/proposicoes/${id}/votacoes`,
-      { params: { itens: 1000 } }, // FIX: API default truncates
     );
     return data?.dados ?? [];
   }
@@ -426,21 +424,30 @@ export class CamaraApiClient {
     return { items, hasNext };
   }
 
-  /** CEAP — cotas parlamentares do deputado, paginadas por ano/mês. */
+  /** CEAP — cotas parlamentares do deputado por legislatura (57, 56, 55). */
   async *iterDeputyExpenses(
     deputyId: number,
     anoInicio = 2015,
   ): AsyncGenerator<CamaraDespesa> {
-    const anoFim = new Date().getFullYear();
-    for (let ano = anoFim; ano >= anoInicio; ano--) {
+    const currentLeg = Number(process.env.TARGET_DEPUTY_LEGISLATURA ?? 57);
+    const startLeg = Number(process.env.INGEST_START_LEGISLATURA ?? 55);
+    const legs: number[] = [];
+    for (let l = currentLeg; l >= startLeg; l--) legs.push(l);
+
+    for (const idLegislatura of legs) {
       let page = 1;
-      while (page <= 100) {
+      while (page <= 500) {
         const { data } = await this.http.get<CamaraEnvelope<CamaraDespesa[]>>(
           `/deputados/${deputyId}/despesas`,
-          { params: { ano, pagina: page, itens: 100 } },
+          { params: { idLegislatura, pagina: page, itens: 100 } },
         );
         const items = data?.dados ?? [];
-        for (const item of items) yield item;
+        if (!items.length) break;
+        for (const item of items) {
+          if (!anoInicio || item.ano >= anoInicio) {
+            yield item;
+          }
+        }
         const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= 100;
         if (!hasNext) break;
         page++;
@@ -448,32 +455,53 @@ export class CamaraApiClient {
     }
   }
 
-  /** Discursos do deputado no Plenário, paginados do mais recente ao mais antigo. */
+  /** Discursos do deputado no Plenário, paginados em janelas de até 3 anos (evita erro 400 da Câmara). */
   async *iterDeputySpeeches(
     deputyId: number,
     dataInicio?: string,
     dataFim?: string,
   ): AsyncGenerator<CamaraDiscurso> {
-    let page = 1;
-    while (page <= 500) {
-      const { data } = await this.http.get<CamaraEnvelope<CamaraDiscurso[]>>(
-        `/deputados/${deputyId}/discursos`,
-        {
-          params: {
-            dataInicio: dataInicio ?? process.env.INGEST_DATA_INICIO ?? '2015-02-01',
-            dataFim: dataFim ?? new Date().toISOString().slice(0, 10),
-            ordenarPor: 'dataHoraInicio',
-            ordem: 'DESC',
-            pagina: page,
-            itens: 100,
+    const startStr = dataInicio ?? process.env.INGEST_DATA_INICIO ?? '2015-02-01';
+    const endStr = dataFim ?? new Date().toISOString().slice(0, 10);
+    const startDate = new Date(startStr);
+    const endDate = new Date(endStr);
+
+    // A API da Câmara rejeita consultas com intervalo > 4 anos. Fatiamos em blocos <= 3 anos (DESC).
+    const ranges: Array<{ from: string; to: string }> = [];
+    let curEnd = new Date(endDate);
+    while (curEnd > startDate) {
+      const curStart = new Date(curEnd);
+      curStart.setFullYear(curStart.getFullYear() - 3);
+      const effectiveStart = curStart < startDate ? startDate : curStart;
+      ranges.push({
+        from: effectiveStart.toISOString().slice(0, 10),
+        to: curEnd.toISOString().slice(0, 10),
+      });
+      curEnd = new Date(effectiveStart.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    for (const range of ranges) {
+      let page = 1;
+      while (page <= 500) {
+        const { data } = await this.http.get<CamaraEnvelope<CamaraDiscurso[]>>(
+          `/deputados/${deputyId}/discursos`,
+          {
+            params: {
+              dataInicio: range.from,
+              dataFim: range.to,
+              ordenarPor: 'dataHoraInicio',
+              ordem: 'DESC',
+              pagina: page,
+              itens: 100,
+            },
           },
-        },
-      );
-      const items = data?.dados ?? [];
-      for (const item of items) yield item;
-      const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= 100;
-      if (!hasNext) break;
-      page++;
+        );
+        const items = data?.dados ?? [];
+        for (const item of items) yield item;
+        const hasNext = (data?.links ?? []).some((l) => l.rel === 'next') && items.length >= 100;
+        if (!hasNext) break;
+        page++;
+      }
     }
   }
 

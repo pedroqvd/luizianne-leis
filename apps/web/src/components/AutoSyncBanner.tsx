@@ -96,6 +96,12 @@ export function AutoSyncBanner({ initialEmpty }: { initialEmpty: boolean }) {
           <span className="px-2 py-1 rounded-md bg-white border border-slate-200">
             Discursos: <strong>{counts.discursos ?? 0}</strong>
           </span>
+          <span className="px-2 py-1 rounded-md bg-white border border-slate-200">
+            CEAP: <strong>{counts.ceap ?? 0}</strong>
+          </span>
+          <span className="px-2 py-1 rounded-md bg-white border border-slate-200">
+            Emendas: <strong>{counts.emendas ?? 0}</strong>
+          </span>
         </div>
       )}
     </div>
