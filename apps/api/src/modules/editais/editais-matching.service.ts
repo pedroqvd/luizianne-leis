@@ -111,10 +111,12 @@ export class EditaisMatchingService {
         editalParams,
       ),
       this.pool.query<AuthorityCandidate>(
-        `SELECT a.id, a.name, a.role, m.name AS municipality_name,
-                m.macro_region, a.allied_status, a.priority_areas
+        `SELECT a.id, a.name, a.role,
+                COALESCE(m.name, a.municipality_name) AS municipality_name,
+                COALESCE(m.macro_region, a.macro_region) AS macro_region,
+                a.allied_status, a.priority_areas
            FROM municipal_authorities a
-           JOIN ceara_municipalities m ON m.id = a.municipality_id
+           LEFT JOIN ceara_municipalities m ON (m.id = a.municipality_id OR m.ibge_code = a.municipality_ibge)
            ${authWhere}`,
         authParams,
       ),
@@ -310,13 +312,13 @@ export class EditaisMatchingService {
       let p = 1;
 
       for (const row of chunk) {
-        placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, 'sugerido', NOW())`);
+        placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}::jsonb, 'sugerido', NOW())`);
         values.push(
           row.edital_id,
           row.authority_id,
           row.demand_id,
           row.match_score,
-          row.match_reasons,
+          JSON.stringify(row.match_reasons ?? []),
         );
       }
 
@@ -370,18 +372,18 @@ export class EditaisMatchingService {
          a.whatsapp AS authority_whatsapp,
          a.phone AS authority_phone,
          a.email AS authority_email,
-         m.name AS municipality_name,
-         m.macro_region,
+         COALESCE(m.name, a.municipality_name) AS municipality_name,
+         COALESCE(m.macro_region, a.macro_region) AS macro_region,
          d.title AS demand_title,
          d.category AS demand_category,
          d.estimated_value AS demand_estimated_value,
          d.urgency AS demand_urgency
        FROM edital_authority_tracking t
        JOIN municipal_authorities a ON a.id = t.authority_id
-       JOIN ceara_municipalities m ON m.id = a.municipality_id
+       LEFT JOIN ceara_municipalities m ON (m.id = a.municipality_id OR m.ibge_code = a.municipality_ibge)
        LEFT JOIN authority_demands d ON d.id = t.demand_id
        WHERE t.edital_id = $1
-       ORDER BY t.match_score DESC, m.name ASC`,
+       ORDER BY t.match_score DESC, COALESCE(m.name, a.municipality_name) ASC`,
       [editalId],
     );
     return rows;
