@@ -1,8 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Public } from '../../../infra/auth';
 import { ActivityService } from '../services/activity.service';
 
 @ApiTags('activity')
+@Public()
 @Controller('activity')
 export class ActivityController {
   constructor(private readonly service: ActivityService) {}

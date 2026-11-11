@@ -293,7 +293,7 @@ DROP POLICY IF EXISTS policy_audit_logs_admin_select ON security_audit_logs;
 CREATE POLICY policy_audit_logs_admin_select ON security_audit_logs
   FOR SELECT USING (public.is_app_admin());
 
--- ── 6. Políticas de Leitura Autenticada para Tabelas de Dados Legislativos ─
+-- ── 6. Políticas de Leitura Pública para Tabelas de Dados Legislativos e Municípios ─
 DO $$
 DECLARE
   tbl TEXT;
@@ -301,6 +301,7 @@ BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'notification_areas',
     'ceara_municipalities',
+    'municipal_authorities',
     'system_events',
     'deputies',
     'propositions',
@@ -322,20 +323,27 @@ BEGIN
   LOOP
     IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = tbl) THEN
       EXECUTE format('DROP POLICY IF EXISTS policy_%I_auth_read ON public.%I', tbl, tbl);
+      EXECUTE format('DROP POLICY IF EXISTS policy_%I_public_read ON public.%I', tbl, tbl);
       EXECUTE format(
-        'CREATE POLICY policy_%I_auth_read ON public.%I FOR SELECT USING (public.current_auth_uid() IS NOT NULL)',
+        'CREATE POLICY policy_%I_public_read ON public.%I FOR SELECT USING (true)',
         tbl, tbl
       );
     END IF;
   END LOOP;
 END $$;
 
--- ── 7. Revogar Acesso Anônimo (anon) no Supabase PostgREST ─────────────────
+-- ── 7. Permissões de Acesso Anônimo (anon) no Supabase PostgREST ───────────
+-- Dados públicos de transparência legislativa e municípios são legíveis por todos (LAI 12.527/2011).
+-- Tabelas de gestão interna (app_users, user_subscriptions, presence_records, demands, security_audit_logs)
+-- permanecem 100% restritas a usuários autenticados e admin.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
     EXECUTE 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon';
     EXECUTE 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon';
+    EXECUTE 'GRANT SELECT ON ceara_municipalities, municipal_authorities TO anon';
+    EXECUTE 'GRANT SELECT ON editais, emendas_orcamentarias, ceap_despesas, discursos, frentes_parlamentares, frente_membros TO anon';
+    EXECUTE 'GRANT SELECT ON deputies, propositions, proposition_authors, proceedings, proposition_versions, votes, categories, proposition_categories, commissions, deputy_commissions, notification_areas TO anon';
   END IF;
 END $$;
 

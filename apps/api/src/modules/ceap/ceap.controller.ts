@@ -5,6 +5,7 @@ import { CeapService } from './ceap.service';
 import { CeapIngestion } from './ceap.ingestion';
 
 @ApiTags('ceap')
+@Public()
 @Controller('ceap')
 export class CeapController {
   constructor(

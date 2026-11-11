@@ -7,12 +7,29 @@
 -- 1. Compatibilidade ceara_municipalities (id SERIAL e ajuste Catunda)
 ALTER TABLE ceara_municipalities ADD COLUMN IF NOT EXISTS id SERIAL;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ceara_municipalities_id_key'
+  ) THEN
+    ALTER TABLE ceara_municipalities ADD CONSTRAINT ceara_municipalities_id_key UNIQUE (id);
+  END IF;
+END $$;
+
 UPDATE ceara_municipalities
 SET name = 'Catunda', macro_region = 'Sertão dos Crateús'
 WHERE ibge_code = '2312759';
 
 -- 2. Compatibilidade e novas colunas em municipal_authorities
-ALTER TABLE municipal_authorities ADD COLUMN IF NOT EXISTS municipality_id INTEGER REFERENCES ceara_municipalities(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'municipal_authorities' AND column_name = 'municipality_id'
+  ) THEN
+    ALTER TABLE municipal_authorities ADD COLUMN municipality_id INTEGER REFERENCES ceara_municipalities(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 ALTER TABLE municipal_authorities ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'prefeito';
 ALTER TABLE municipal_authorities ADD COLUMN IF NOT EXISTS ballot_name TEXT;
 ALTER TABLE municipal_authorities ADD COLUMN IF NOT EXISTS vice_mayor TEXT;

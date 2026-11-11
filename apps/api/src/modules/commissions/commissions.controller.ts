@@ -1,8 +1,10 @@
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Public } from '../../infra/auth';
 import { CommissionsService } from './commissions.service';
 
 @ApiTags('commissions')
+@Public()
 @Controller('commissions')
 export class CommissionsController {
   constructor(private readonly service: CommissionsService) {}

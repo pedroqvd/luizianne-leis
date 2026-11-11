@@ -5,6 +5,7 @@ import { DiscursosService } from './discursos.service';
 import { DiscursosIngestion } from './discursos.ingestion';
 
 @ApiTags('discursos')
+@Public()
 @Controller('discursos')
 export class DiscursosController {
   constructor(

@@ -1,8 +1,10 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../../infra/auth';
 import { PropositionsService } from '../services/propositions.service';
 
 @ApiTags('propositions')
+@Public()
 @Controller('propositions')
 export class PropositionsController {
   constructor(private readonly service: PropositionsService) {}

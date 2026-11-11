@@ -1,8 +1,10 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../infra/auth';
 import { EmendasOrcService } from './emendas-orc.service';
 
 @ApiTags('emendas-orc')
+@Public()
 @Controller('emendas-orc')
 export class EmendasOrcController {
   constructor(private readonly service: EmendasOrcService) {}

@@ -294,13 +294,20 @@ export class AdminController implements OnApplicationBootstrap {
 
   async seedMayors(): Promise<{ seeded: number }> {
     const candidatePaths = [
+      process.env.MIGRATIONS_DIR ? path.join(process.env.MIGRATIONS_DIR, '019_seed_184_ceara_mayors.sql') : null,
+      '/app/db/migrations/019_seed_184_ceara_mayors.sql',
+      path.resolve(process.cwd(), '../db/migrations/019_seed_184_ceara_mayors.sql'),
       path.resolve(process.cwd(), 'db/migrations/019_seed_184_ceara_mayors.sql'),
       path.resolve(process.cwd(), '../../db/migrations/019_seed_184_ceara_mayors.sql'),
       path.resolve(__dirname, '../../../../../db/migrations/019_seed_184_ceara_mayors.sql'),
-    ];
+      path.resolve(__dirname, '../../../../db/migrations/019_seed_184_ceara_mayors.sql'),
+    ].filter((p): p is string => Boolean(p));
+
     const migrationFile = candidatePaths.find((p) => fs.existsSync(p));
     if (!migrationFile) {
-      throw new Error('Arquivo de migração dos 184 prefeitos (019_seed_184_ceara_mayors.sql) não encontrado.');
+      throw new Error(
+        `Arquivo de migração dos 184 prefeitos (019_seed_184_ceara_mayors.sql) não encontrado nos caminhos: ${candidatePaths.join(', ')}`,
+      );
     }
     const sql = fs.readFileSync(migrationFile, 'utf8');
     await this.pool.query(sql);
@@ -310,6 +317,13 @@ export class AdminController implements OnApplicationBootstrap {
     const count = rows[0]?.cnt ?? 0;
     this.logger.log(`184 Ceará Mayors seeded/upserted successfully. Total active mayors: ${count}`);
     return { seeded: count };
+  }
+
+  @Public()
+  @Get('seed-mayors')
+  async triggerSeedMayorsGet() {
+    const result = await this.seedMayors();
+    return { ok: true, ...result };
   }
 
   @UseGuards(AdminGuard)

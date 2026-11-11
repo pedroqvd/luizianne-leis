@@ -23,9 +23,9 @@ export default async function ArticulacaoPage() {
       .order('name'),
     admin
       .from('municipal_authorities')
-      .select('*, municipality:municipality_id(id, name, macro_region, population)')
+      .select('*')
       .eq('active', true)
-      .order('created_at', { ascending: false }),
+      .order('municipality_name', { ascending: true }),
     admin
       .from('authority_demands')
       .select('*, assignee:assigned_to(name)')
@@ -50,6 +50,33 @@ export default async function ArticulacaoPage() {
     admin.from('app_users').select('id, name, email').order('name'),
   ]);
 
+  const munByIbge = new Map((municipalities ?? []).map((m: any) => [m.ibge_code, m]));
+  const munById = new Map((municipalities ?? []).map((m: any) => [m.id, m]));
+  const munByName = new Map((municipalities ?? []).map((m: any) => [m.name?.toLowerCase?.(), m]));
+
+  const mappedAuthorities = (authorities ?? []).map((a: any) => {
+    const mun = (a.municipality_ibge ? munByIbge.get(a.municipality_ibge) : null)
+      ?? (a.municipality_id ? munById.get(a.municipality_id) : null)
+      ?? (a.municipality_name ? munByName.get(a.municipality_name.toLowerCase()) : null)
+      ?? a.municipality
+      ?? {
+        id: a.municipality_id ?? 0,
+        ibge_code: a.municipality_ibge ?? '',
+        name: a.municipality_name ?? 'Município',
+        macro_region: a.macro_region ?? 'Interior',
+        population: null,
+      };
+
+    return {
+      ...a,
+      municipality: mun,
+      municipality_id: a.municipality_id ?? mun?.id ?? 0,
+      role: a.role ?? a.role_type ?? 'prefeito',
+      whatsapp: a.whatsapp ?? a.phone_whatsapp ?? a.phone ?? null,
+      phone: a.phone ?? a.phone_whatsapp ?? null,
+    };
+  });
+
   const mappedAmendments = (amendments ?? []).map((a: any) => ({
     id: Number(a.id),
     code: a.codigo_emenda ?? String(a.id),
@@ -65,7 +92,7 @@ export default async function ArticulacaoPage() {
   return (
     <ArticulacaoClient
       municipalities={municipalities ?? []}
-      initialAuthorities={authorities ?? []}
+      initialAuthorities={mappedAuthorities}
       initialDemands={demands ?? []}
       initialTrackings={trackings ?? []}
       amendments={mappedAmendments}

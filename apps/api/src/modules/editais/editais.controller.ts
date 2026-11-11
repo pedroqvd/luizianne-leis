@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiQuery } from '@nestjs/swagger';
+import { Public } from '../../infra/auth';
 import { EditaisService } from './editais.service';
 
 @ApiTags('editais')
+@Public()
 @Controller('editais')
 export class EditaisController {
   constructor(private readonly service: EditaisService) {}

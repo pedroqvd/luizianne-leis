@@ -5,6 +5,7 @@ import { FrentesService } from './frentes.service';
 import { FrentesIngestion } from './frentes.ingestion';
 
 @ApiTags('frentes')
+@Public()
 @Controller('frentes')
 export class FrentesController {
   constructor(

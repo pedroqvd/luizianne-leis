@@ -2,6 +2,7 @@ import { Controller, Get, Query, Sse, MessageEvent, ServiceUnavailableException 
 import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { Observable, map, interval, merge } from 'rxjs';
+import { Public } from '../../infra/auth';
 import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
 
@@ -13,6 +14,7 @@ export class NotificationsController {
     private readonly gateway: NotificationsGateway,
   ) {}
 
+  @Public()
   @Get()
   list(@Query('limit') limit?: string) {
     const parsed = limit ? Number(limit) : 50;
