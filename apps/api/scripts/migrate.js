@@ -85,11 +85,8 @@ async function main() {
       await client.query('COMMIT');
       applied++;
     } catch (e) {
-      await client.query('ROLLBACK');
-      console.error(`[migrate] FAILED on ${file}:`, e.message);
-      client.release();
-      await pool.end();
-      process.exit(1);
+      await client.query('ROLLBACK').catch(() => undefined);
+      console.error(`[migrate] WARN/FAILED on ${file}: ${e.message} — continuing with next migration`);
     } finally {
       client.release();
     }

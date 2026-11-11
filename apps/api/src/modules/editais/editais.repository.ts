@@ -275,10 +275,10 @@ export class EditaisRepository {
              COUNT(*)::int AS matched_authorities_count,
              MAX(t.match_score) AS max_match_score,
              ARRAY(
-               SELECT cm.name
+               SELECT COALESCE(cm.name, ma.municipality_name)
                  FROM edital_authority_tracking t2
                  JOIN municipal_authorities ma ON ma.id = t2.authority_id
-                 JOIN ceara_municipalities cm ON cm.id = ma.municipality_id
+                 LEFT JOIN ceara_municipalities cm ON cm.ibge_code = ma.municipality_ibge
                 WHERE t2.edital_id = e.id
                 ORDER BY t2.match_score DESC
                 LIMIT 4

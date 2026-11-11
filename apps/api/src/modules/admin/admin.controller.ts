@@ -188,12 +188,15 @@ export class AdminController implements OnApplicationBootstrap {
 
     // 7. Prefeitos do Ceará (184 municípios com dados oficiais 2025-2028)
     const prefeitosEmpty = (st.prefeitos_cnt ?? 0) < 184;
-    if (prefeitosEmpty && this.canTrigger('seed_mayors', 60_000)) {
+    if (prefeitosEmpty && this.canTrigger('seed_mayors', 15_000)) {
       this.logger.log(`[AutoSync:${source}] Triggering 184 Ceará Mayors seeding (cnt=${st.prefeitos_cnt})...`);
       triggered.push('prefeitos');
-      this.seedMayors().catch((e) =>
-        this.logger.warn(`[AutoSync] Mayors seed failed: ${e.message}`),
-      );
+      try {
+        const res = await this.seedMayors();
+        st.prefeitos_cnt = res.seeded;
+      } catch (e: any) {
+        this.logger.warn(`[AutoSync] Mayors seed failed: ${e.message}`);
+      }
     }
 
     return {

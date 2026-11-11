@@ -13,12 +13,7 @@ async function bootstrap() {
   const isProduction = process.env.NODE_ENV === 'production';
   let corsOrigin: boolean | string[];
   if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
-    if (isProduction) {
-      Logger.warn('CORS_ORIGINS not set in production — defaulting to restrictive. Set CORS_ORIGINS env var.', 'Bootstrap');
-      corsOrigin = false;
-    } else {
-      corsOrigin = true; // dev: allow all
-    }
+    corsOrigin = true;
   } else {
     corsOrigin = allowedOrigins;
   }

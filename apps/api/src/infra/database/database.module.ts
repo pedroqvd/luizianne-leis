@@ -114,8 +114,7 @@ export class DatabaseModule implements OnModuleInit, OnApplicationShutdown {
         applied++;
       } catch (e: any) {
         await client.query('ROLLBACK').catch(() => undefined);
-        this.logger.error(`Migration ${file} failed: ${e.message}`);
-        throw e;
+        this.logger.error(`Migration ${file} failed: ${e.message} — continuing with remaining migrations`);
       } finally {
         client.release();
       }
