@@ -22,7 +22,7 @@ export class EditaisIngestion {
     private readonly cache: CacheService,
   ) {}
 
-  @Cron(process.env.EDITAIS_CRON ?? '0 */6 * * *')
+  @Cron(process.env.EDITAIS_CRON ?? '0 */3 * * *')
   async run() {
     if (this.running) {
       this.logger.warn('editais ingestion already running, skipping');

@@ -15,7 +15,7 @@ export class AnalyticsService {
   ) {}
 
   async summary() {
-    return this.cache.wrap('analytics:summary', 30, async () => {
+    return this.cache.wrap('analytics:summary', 180, async () => {
       const d = await this.deputy.getTarget();
       const [{ rows: prod }, { rows: byType }, { rows: byYear }] = await Promise.all([
         this.pool.query(

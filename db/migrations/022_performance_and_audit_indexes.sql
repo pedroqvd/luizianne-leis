@@ -28,3 +28,8 @@ CREATE INDEX IF NOT EXISTS idx_ceap_deputy_ano_mes_data
 CREATE INDEX IF NOT EXISTS idx_editais_abertos_prefeituras
   ON editais (situacao, elegivel_prefeituras)
   WHERE situacao = 'aberto';
+
+-- 6. proposition_authors: índice de cobertura para contadores de autoria e listagens filtradas por papel
+CREATE INDEX IF NOT EXISTS idx_pa_deputy_role_prop
+  ON proposition_authors (deputy_id, role, proposition_id);
+

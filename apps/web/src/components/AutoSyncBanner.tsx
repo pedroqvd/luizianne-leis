@@ -29,6 +29,7 @@ export function AutoSyncBanner({ initialEmpty }: { initialEmpty: boolean }) {
       try {
         const res = await fetch(buildEndpointUrl('/admin/auto-sync'), {
           cache: 'no-store',
+          signal: AbortSignal.timeout(10_000),
         });
         if (res.ok) {
           const body = await res.json();

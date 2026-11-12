@@ -8,10 +8,6 @@ export default async function PresencaPage() {
   await requireTabAccess('presenca');
 
   const admin = createAdminClient();
-  await admin.storage
-    .createBucket('presence-photos', { public: true, fileSizeLimit: 5 * 1024 * 1024 })
-    .catch(() => undefined);
-
   const { data: records } = await admin
     .from('presence_records')
     .select('*, creator:created_by(name)')
