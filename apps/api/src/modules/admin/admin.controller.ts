@@ -122,9 +122,9 @@ export class AdminController implements OnApplicationBootstrap {
       ]).catch(() => undefined);
     }
 
-    // 1. Editais PNCP (vazio ou > 6h sem atualizar)
+    // 1. Editais PNCP (vazio ou > 2h sem atualizar)
     const editaisEmpty = (st.editais_cnt ?? 0) === 0;
-    if ((editaisEmpty || ageMs(st.editais_last) > 6 * HOUR) && this.canTrigger('editais', editaisEmpty ? 3 * 60_000 : 2 * HOUR)) {
+    if ((editaisEmpty || ageMs(st.editais_last) > 2 * HOUR) && this.canTrigger('editais', editaisEmpty ? 3 * 60_000 : 1 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering editais sync (cnt=${st.editais_cnt})...`);
       triggered.push('editais');
       this.editaisIngestion.run().catch((e) =>
@@ -132,9 +132,9 @@ export class AdminController implements OnApplicationBootstrap {
       );
     }
 
-    // 2. Proposições, Votações, Comissões e Ausências (vazio ou > 12h sem atualizar)
+    // 2. Proposições, Votações, Comissões e Ausências (vazio ou > 2h sem atualizar)
     const propsEmpty = (st.props_cnt ?? 0) === 0;
-    if ((propsEmpty || ageMs(st.props_last) > 12 * HOUR) && this.canTrigger('propositions', propsEmpty ? 3 * 60_000 : 4 * HOUR)) {
+    if ((propsEmpty || ageMs(st.props_last) > 2 * HOUR) && this.canTrigger('propositions', propsEmpty ? 3 * 60_000 : 1 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering Câmara full sync (cnt=${st.props_cnt})...`);
       triggered.push('propositions');
       this.queue.enqueueFullSync().catch((e) =>
@@ -144,9 +144,9 @@ export class AdminController implements OnApplicationBootstrap {
       this.laws.checkApprovedLaws().catch(() => undefined);
     }
 
-    // 3. Frentes Parlamentares (vazio ou > 7 dias sem atualizar)
+    // 3. Frentes Parlamentares (vazio ou > 24h sem atualizar)
     const frentesEmpty = (st.frentes_cnt ?? 0) === 0;
-    if ((frentesEmpty || ageMs(st.frentes_last) > 7 * 24 * HOUR) && this.canTrigger('frentes', frentesEmpty ? 3 * 60_000 : 12 * HOUR)) {
+    if ((frentesEmpty || ageMs(st.frentes_last) > 24 * HOUR) && this.canTrigger('frentes', frentesEmpty ? 3 * 60_000 : 6 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering frentes sync (cnt=${st.frentes_cnt})...`);
       triggered.push('frentes');
       this.frentesIngestion.sync().catch((e) =>
@@ -154,9 +154,9 @@ export class AdminController implements OnApplicationBootstrap {
       );
     }
 
-    // 4. Discursos (vazio -> histórico desde 2015; ou > 24h -> recente)
+    // 4. Discursos (vazio -> histórico desde 2015; ou > 4h -> recente)
     const discursosEmpty = (st.discursos_cnt ?? 0) === 0;
-    if ((discursosEmpty || ageMs(st.discursos_last) > 24 * HOUR) && this.canTrigger('discursos', discursosEmpty ? 3 * 60_000 : 6 * HOUR)) {
+    if ((discursosEmpty || ageMs(st.discursos_last) > 4 * HOUR) && this.canTrigger('discursos', discursosEmpty ? 3 * 60_000 : 2 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering discursos sync (cnt=${st.discursos_cnt})...`);
       triggered.push('discursos');
       const task = discursosEmpty
@@ -165,9 +165,9 @@ export class AdminController implements OnApplicationBootstrap {
       task.catch((e) => this.logger.warn(`[AutoSync] Discursos sync failed: ${e.message}`));
     }
 
-    // 5. CEAP Despesas (vazio -> histórico por legislaturas; ou > 24h -> recente)
+    // 5. CEAP Despesas (vazio -> histórico por legislaturas; ou > 4h -> recente)
     const ceapEmpty = (st.ceap_cnt ?? 0) === 0;
-    if ((ceapEmpty || ageMs(st.ceap_last) > 24 * HOUR) && this.canTrigger('ceap', ceapEmpty ? 3 * 60_000 : 6 * HOUR)) {
+    if ((ceapEmpty || ageMs(st.ceap_last) > 4 * HOUR) && this.canTrigger('ceap', ceapEmpty ? 3 * 60_000 : 2 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering CEAP sync (cnt=${st.ceap_cnt})...`);
       triggered.push('ceap');
       const task = ceapEmpty
@@ -176,9 +176,9 @@ export class AdminController implements OnApplicationBootstrap {
       task.catch((e) => this.logger.warn(`[AutoSync] CEAP sync failed: ${e.message}`));
     }
 
-    // 6. Emendas Orçamentárias (vazio ou > 7 dias sem atualizar)
+    // 6. Emendas Orçamentárias (vazio ou > 24h sem atualizar)
     const emendasEmpty = (st.emendas_cnt ?? 0) === 0;
-    if ((emendasEmpty || ageMs(st.emendas_last) > 7 * 24 * HOUR) && this.canTrigger('emendas', emendasEmpty ? 3 * 60_000 : 12 * HOUR)) {
+    if ((emendasEmpty || ageMs(st.emendas_last) > 24 * HOUR) && this.canTrigger('emendas', emendasEmpty ? 3 * 60_000 : 6 * HOUR)) {
       this.logger.log(`[AutoSync:${source}] Triggering Emendas sync (cnt=${st.emendas_cnt})...`);
       triggered.push('emendas');
       this.emendasIngestion.run().catch((e) =>

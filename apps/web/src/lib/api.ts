@@ -3,10 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 export { getApiBaseUrl, buildEndpointUrl } from './api-url';
 import { buildEndpointUrl } from './api-url';
 
-const TIMEOUT_MS = 9_000; // must stay below Vercel Hobby's 10s function limit
+const TIMEOUT_MS = typeof window !== 'undefined' ? 30_000 : 14_000;
 
 /**
- * Frontend API client com Bearer token automático e erros tipados.
+ * Frontend API client com Bearer token automático, retry inteligente e erros tipados.
  */
 export class ApiError extends Error {
   constructor(
@@ -35,7 +35,7 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(path: string, init?: RequestInit, retries = 1): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -49,12 +49,20 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(buildEndpointUrl(path), {
+    const url = buildEndpointUrl(path);
+    const res = await fetch(url, {
       ...init,
       headers,
       cache: 'no-store',
       signal: controller.signal,
     });
+
+    // Se o backend estiver acordando (502/503/504) e ainda tivermos tentativas, tenta novamente após 1s
+    if ((res.status === 502 || res.status === 503 || res.status === 504) && retries > 0) {
+      clearTimeout(timer);
+      await new Promise((r) => setTimeout(r, 1200));
+      return api<T>(path, init, retries - 1);
+    }
 
     if (!res.ok) {
       let detail: string | undefined;
@@ -71,10 +79,20 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     }
 
     return res.json() as Promise<T>;
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof ApiError) throw e;
     if (e instanceof DOMException && e.name === 'AbortError') {
+      if (retries > 0) {
+        clearTimeout(timer);
+        return api<T>(path, init, retries - 1);
+      }
       throw new ApiError(408, path, `Request timeout (${TIMEOUT_MS}ms): ${path}`);
+    }
+    // Network / cold-start error
+    if (retries > 0) {
+      clearTimeout(timer);
+      await new Promise((r) => setTimeout(r, 1200));
+      return api<T>(path, init, retries - 1);
     }
     throw e;
   } finally {

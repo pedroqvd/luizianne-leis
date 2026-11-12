@@ -17,7 +17,7 @@ export class IngestionScheduler {
     private readonly laws: LawsAlertService,
   ) {}
 
-  @Cron(process.env.INGESTION_CRON ?? '0 6,18 * * *')
+  @Cron(process.env.INGESTION_CRON ?? '0 */3 * * *')
   async tick() {
     this.logger.log('cron tick — enqueue full sync');
     await this.queue.enqueueFullSync();
