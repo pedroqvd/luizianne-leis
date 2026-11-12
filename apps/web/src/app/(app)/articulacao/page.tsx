@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { requireTabAccess } from '@/lib/auth-guard';
 import { ArticulacaoClient } from './ArticulacaoClient';
+import { buildFallbackDemands, buildFallbackTrackings } from '@/lib/articulacao-fallback';
 
 export default async function ArticulacaoPage() {
   await requireTabAccess('articulacao');
@@ -89,12 +90,20 @@ export default async function ArticulacaoPage() {
     value_pago: Number(a.valor_pago ?? 0),
   }));
 
+  const effectiveDemands = (demands && demands.length > 0)
+    ? demands
+    : buildFallbackDemands(mappedAuthorities);
+
+  const effectiveTrackings = (trackings && trackings.length > 0)
+    ? trackings
+    : buildFallbackTrackings(mappedAuthorities, effectiveDemands);
+
   return (
     <ArticulacaoClient
       municipalities={municipalities ?? []}
       initialAuthorities={mappedAuthorities}
-      initialDemands={demands ?? []}
-      initialTrackings={trackings ?? []}
+      initialDemands={effectiveDemands}
+      initialTrackings={effectiveTrackings}
       amendments={mappedAmendments}
       members={members ?? []}
     />

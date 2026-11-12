@@ -206,11 +206,13 @@ const ROLE_LABELS: Record<string, string> = {
   vereador_aliado: 'Vereador(a) Aliado(a)',
 };
 
+export function normalizeAlliedStatus(status?: string | null): string {
+  if (!status) return 'institucional';
+  if (status === 'aliado_base_elmano') return 'base_elmano_luizianne';
+  return status;
+}
+
 const ALLIED_CFG: Record<string, { label: string; cls: string }> = {
-  aliado_base_elmano: {
-    label: 'Aliado — Base Gov. Elmano / Sen. Luizianne',
-    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  },
   base_elmano_luizianne: {
     label: 'Base Gov. Elmano & Sen. Luizianne',
     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -351,11 +353,31 @@ export function ArticulacaoClient({
     return Array.from(new Set(municipalities.map((m) => m.macro_region))).sort();
   }, [municipalities]);
 
-  const parties = useMemo(() => {
-    return Array.from(
-      new Set(authorities.map((a) => a.party).filter((p): p is string => Boolean(p))),
-    ).sort();
+  const alliedCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of authorities) {
+      const key = normalizeAlliedStatus(a.allied_status);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
   }, [authorities]);
+
+  const partyCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of authorities) {
+      if (a.party) {
+        map.set(a.party, (map.get(a.party) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [authorities]);
+
+  const parties = useMemo(() => {
+    return Array.from(partyCounts.keys()).sort((a, b) => {
+      const diff = (partyCounts.get(b) ?? 0) - (partyCounts.get(a) ?? 0);
+      return diff !== 0 ? diff : a.localeCompare(b);
+    });
+  }, [partyCounts]);
 
   const demandsByAuthority = useMemo(() => {
     const map = new Map<string, AuthorityDemand[]>();
@@ -382,12 +404,20 @@ export function ArticulacaoClient({
   // KPIs
   const kpis = useMemo(() => {
     const totalAuthorities = authorities.length;
-    const baseElmanoCount = authorities.filter(
-      (a) => a.allied_status === 'aliado_base_elmano' || a.allied_status === 'parceiro_estrategico',
+    const baseElmanoCount = authorities.filter((a) => {
+      const s = normalizeAlliedStatus(a.allied_status);
+      return s === 'base_elmano_luizianne' || s === 'parceiro_estrategico';
+    }).length;
+    const alliedPriorityCount = authorities.filter(
+      (a) => normalizeAlliedStatus(a.allied_status) === 'aliado_prioritario',
     ).length;
     const activeDemands = demands.filter((d) => d.status !== 'arquivada');
     const criticalDemands = activeDemands.filter(
-      (d) => d.urgency === 'critica' || d.urgency === 'alta',
+      (d) =>
+        d.urgency === 'critica' ||
+        d.urgency === 'alta' ||
+        (d as any).priority === 'urgente' ||
+        (d as any).priority === 'alta',
     ).length;
     const totalRequestedValue = activeDemands.reduce(
       (acc, d) => acc + Number(d.estimated_value ?? 0),
@@ -406,6 +436,7 @@ export function ArticulacaoClient({
     return {
       totalAuthorities,
       baseElmanoCount,
+      alliedPriorityCount,
       totalDemands: activeDemands.length,
       criticalDemands,
       totalRequestedValue,
@@ -424,7 +455,7 @@ export function ArticulacaoClient({
       const authMatches = activeTrackingsByAuthority.get(auth.id) ?? [];
 
       if (regionFilter && mun?.macro_region !== regionFilter) return false;
-      if (alliedFilter && auth.allied_status !== alliedFilter) return false;
+      if (alliedFilter && normalizeAlliedStatus(auth.allied_status) !== alliedFilter) return false;
       if (partyFilter && auth.party !== partyFilter) return false;
       if (categoryFilter) {
         const hasCat =
@@ -469,7 +500,7 @@ export function ArticulacaoClient({
       const mun = auth ? getMun(auth, munMap) : munMap.get(d.municipality_id);
 
       if (regionFilter && mun?.macro_region !== regionFilter) return false;
-      if (alliedFilter && auth && auth.allied_status !== alliedFilter) return false;
+      if (alliedFilter && auth && normalizeAlliedStatus(auth.allied_status) !== alliedFilter) return false;
       if (partyFilter && auth?.party !== partyFilter) return false;
       if (categoryFilter && d.category !== categoryFilter) return false;
 
@@ -499,7 +530,7 @@ export function ArticulacaoClient({
       const mun = auth ? getMun(auth, munMap) : undefined;
 
       if (regionFilter && mun?.macro_region !== regionFilter) return false;
-      if (alliedFilter && auth && auth.allied_status !== alliedFilter) return false;
+      if (alliedFilter && auth && normalizeAlliedStatus(auth.allied_status) !== alliedFilter) return false;
       if (partyFilter && auth?.party !== partyFilter) return false;
       if (
         categoryFilter &&
@@ -686,7 +717,8 @@ export function ArticulacaoClient({
               <p className="section-label">Prefeitos & Lideranças</p>
               <p className="text-2xl font-bold text-slate-900 mt-1">{kpis.totalAuthorities}</p>
               <p className="text-xs text-emerald-600 font-medium mt-1">
-                {kpis.baseElmanoCount} da Base Aliada Elmano
+                {kpis.baseElmanoCount} da Base Gov. Elmano & Sen. Luizianne
+                {kpis.alliedPriorityCount > 0 && ` (+${kpis.alliedPriorityCount} aliados)`}
               </p>
             </div>
             <div className="p-2 bg-brand-50 rounded-xl">
@@ -834,12 +866,14 @@ export function ArticulacaoClient({
             onChange={(e) => setAlliedFilter(e.target.value)}
             className="input text-xs"
           >
-            <option value="">Todos os Perfis de Aliança</option>
-            {Object.entries(ALLIED_CFG).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
-            ))}
+            <option value="">Todos os Perfis de Aliança ({authorities.length > 0 ? authorities.length : 184} prefeitos)</option>
+            {Object.entries(ALLIED_CFG)
+              .filter(([key]) => (alliedCounts.get(key) ?? 0) > 0)
+              .map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label} ({alliedCounts.get(k) ?? 0} {alliedCounts.get(k) === 1 ? 'prefeito' : 'prefeitos'})
+                </option>
+              ))}
           </select>
 
           <select
@@ -847,10 +881,10 @@ export function ArticulacaoClient({
             onChange={(e) => setPartyFilter(e.target.value)}
             className="input text-xs"
           >
-            <option value="">Todos os Partidos</option>
+            <option value="">Todos os Partidos ({authorities.length > 0 ? authorities.length : 184} prefeitos)</option>
             {parties.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {p} ({partyCounts.get(p) ?? 0} {partyCounts.get(p) === 1 ? 'prefeito' : 'prefeitos'})
               </option>
             ))}
           </select>
@@ -901,7 +935,9 @@ export function ArticulacaoClient({
                 const mun = getMun(auth, munMap);
                 const authDemands = demandsByAuthority.get(auth.id) ?? [];
                 const authMatches = activeTrackingsByAuthority.get(auth.id) ?? [];
-                const allied = ALLIED_CFG[auth.allied_status] ?? ALLIED_CFG.aliado_base_elmano;
+                const allied =
+                  ALLIED_CFG[normalizeAlliedStatus(auth.allied_status)] ??
+                  ALLIED_CFG.base_elmano_luizianne;
                 const totalDemValue = authDemands.reduce(
                   (acc, d) => acc + Number(d.estimated_value ?? 0),
                   0,
@@ -1460,7 +1496,9 @@ function MayorDossierModal({
   copiedId: string | null;
 }) {
   const munName = municipality?.name ?? 'Município';
-  const allied = ALLIED_CFG[authority.allied_status] ?? ALLIED_CFG.aliado_base_elmano;
+  const allied =
+    ALLIED_CFG[normalizeAlliedStatus(authority.allied_status)] ??
+    ALLIED_CFG.base_elmano_luizianne;
 
   const munAmendments = useMemo(() => {
     const target = normalizeStr(munName);
@@ -2047,7 +2085,7 @@ function AuthorityModal({
   const [role, setRole] = useState(initial?.role ?? 'prefeito');
   const [party, setParty] = useState(initial?.party ?? 'PT');
   const [alliedStatus, setAlliedStatus] = useState(
-    initial?.allied_status ?? 'aliado_base_elmano',
+    initial?.allied_status ? normalizeAlliedStatus(initial.allied_status) : 'base_elmano_luizianne',
   );
   const [mayorMandate, setMayorMandate] = useState(initial?.mayor_mandate ?? '1º Mandato');
   const [senatorVotes, setSenatorVotes] = useState(

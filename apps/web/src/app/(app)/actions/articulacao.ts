@@ -341,9 +341,11 @@ export async function saveAuthority(input: AuthorityInput) {
     ? input.role
     : 'prefeito';
 
-  const alliedStatus = (ALLOWED_ALLIED_STATUSES as readonly string[]).includes(input.allied_status)
-    ? input.allied_status
-    : 'aliado_base_elmano';
+  const normalizedStatus =
+    input.allied_status === 'aliado_base_elmano' ? 'base_elmano_luizianne' : input.allied_status;
+  const alliedStatus = (ALLOWED_ALLIED_STATUSES as readonly string[]).includes(normalizedStatus)
+    ? normalizedStatus
+    : 'base_elmano_luizianne';
 
   const priorityAreas = Array.isArray(input.priority_areas)
     ? input.priority_areas
