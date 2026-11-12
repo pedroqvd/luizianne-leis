@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useDeferredValue, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   saveAuthority,
@@ -317,6 +317,7 @@ export function ArticulacaoClient({
 
   const [activeView, setActiveView] = useState<'prefeitos' | 'demandas' | 'radar'>('prefeitos');
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [regionFilter, setRegionFilter] = useState('');
   const [alliedFilter, setAlliedFilter] = useState('');
   const [partyFilter, setPartyFilter] = useState('');
@@ -448,7 +449,7 @@ export function ArticulacaoClient({
 
   // Filtered Authorities
   const filteredAuthorities = useMemo(() => {
-    const q = normalizeStr(search);
+    const q = normalizeStr(deferredSearch);
     return authorities.filter((auth) => {
       const mun = getMun(auth, munMap);
       const authDemands = demandsByAuthority.get(auth.id) ?? [];
@@ -489,12 +490,12 @@ export function ArticulacaoClient({
     partyFilter,
     categoryFilter,
     onlyWithMatches,
-    search,
+    deferredSearch,
   ]);
 
   // Filtered Demands
   const filteredDemands = useMemo(() => {
-    const q = normalizeStr(search);
+    const q = normalizeStr(deferredSearch);
     return demands.filter((d) => {
       const auth = authMap.get(d.authority_id);
       const mun = auth ? getMun(auth, munMap) : munMap.get(d.municipality_id);
@@ -519,11 +520,11 @@ export function ArticulacaoClient({
       }
       return true;
     });
-  }, [demands, authMap, munMap, regionFilter, alliedFilter, partyFilter, categoryFilter, search]);
+  }, [demands, authMap, munMap, regionFilter, alliedFilter, partyFilter, categoryFilter, deferredSearch]);
 
   // Filtered Trackings
   const filteredTrackings = useMemo(() => {
-    const q = normalizeStr(search);
+    const q = normalizeStr(deferredSearch);
     return trackings.filter((t) => {
       if (t.tracking_status === 'descartado') return false;
       const auth = authMap.get(t.authority_id);
@@ -554,7 +555,7 @@ export function ArticulacaoClient({
       }
       return true;
     });
-  }, [trackings, authMap, munMap, regionFilter, alliedFilter, partyFilter, categoryFilter, search]);
+  }, [trackings, authMap, munMap, regionFilter, alliedFilter, partyFilter, categoryFilter, deferredSearch]);
 
   const selectedAuthority = useMemo(
     () => (selectedAuthorityId ? authMap.get(selectedAuthorityId) ?? null : null),

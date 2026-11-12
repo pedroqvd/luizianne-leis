@@ -21,33 +21,35 @@ export class EditaisService {
   }
 
   async findById(id: number) {
-    const edital = await this.repo.findById(id);
-    if (!edital) throw new NotFoundException('Edital não encontrado');
+    return this.cache.wrap(`editais:detail:${id}`, 180, async () => {
+      const edital = await this.repo.findById(id);
+      if (!edital) throw new NotFoundException('Edital não encontrado');
 
-    // Enriquecimento sob demanda (itens e arquivos anexos do PNCP) se ainda vazio
-    const itensEmpty =
-      !Array.isArray(edital.itens_resumo) || edital.itens_resumo.length === 0;
-    const arquivosEmpty =
-      !Array.isArray(edital.arquivos_anexos) || edital.arquivos_anexos.length === 0;
+      // Enriquecimento sob demanda (itens e arquivos anexos do PNCP) se ainda vazio
+      const itensEmpty =
+        !Array.isArray(edital.itens_resumo) || edital.itens_resumo.length === 0;
+      const arquivosEmpty =
+        !Array.isArray(edital.arquivos_anexos) || edital.arquivos_anexos.length === 0;
 
-    if (edital.origem === 'pncp' && edital.pncp_id && itensEmpty && arquivosEmpty) {
-      try {
-        const deep = await this.pncp.fetchDeepDetails(edital.pncp_id);
-        if (deep.itens_resumo.length > 0 || deep.arquivos_anexos.length > 0) {
-          edital.itens_resumo = deep.itens_resumo;
-          edital.arquivos_anexos = deep.arquivos_anexos;
-          await this.repo.updateDeepDetails(id, deep.itens_resumo, deep.arquivos_anexos);
+      if (edital.origem === 'pncp' && edital.pncp_id && itensEmpty && arquivosEmpty) {
+        try {
+          const deep = await this.pncp.fetchDeepDetails(edital.pncp_id);
+          if (deep.itens_resumo.length > 0 || deep.arquivos_anexos.length > 0) {
+            edital.itens_resumo = deep.itens_resumo;
+            edital.arquivos_anexos = deep.arquivos_anexos;
+            await this.repo.updateDeepDetails(id, deep.itens_resumo, deep.arquivos_anexos);
+          }
+        } catch (e: any) {
+          this.logger.warn(`Failed to enrich deep details for edital ${id}: ${e.message}`);
         }
-      } catch (e: any) {
-        this.logger.warn(`Failed to enrich deep details for edital ${id}: ${e.message}`);
       }
-    }
 
-    const matches = await this.matching.listMatchesForEdital(id);
-    return {
-      ...edital,
-      matches,
-    };
+      const matches = await this.matching.listMatchesForEdital(id);
+      return {
+        ...edital,
+        matches,
+      };
+    });
   }
 
   async stats() {

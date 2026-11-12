@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   const truncated = rows.length >= MAX_CSV_ROWS;
 
-  return new NextResponse(csv, {
+  return new NextResponse('\uFEFF' + csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': 'attachment; filename="proposicoes.csv"',
