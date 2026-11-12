@@ -14,12 +14,6 @@ export async function GET() {
     return NextResponse.json({
       ok: res.ok,
       status: res.status,
-      targetUrl,
-      env: {
-        API_URL: process.env.API_URL ?? null,
-        INTERNAL_API_URL: process.env.INTERNAL_API_URL ?? null,
-        NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? null,
-      },
       backend: data,
     });
   } catch (e: any) {
