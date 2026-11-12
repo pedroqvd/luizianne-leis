@@ -77,6 +77,10 @@ export async function api<T>(path: string, init?: RequestInit, retries = 1): Pro
         detail = body?.message ?? body?.error;
       } catch { /* body não é JSON */ }
 
+      if (typeof window === 'undefined') {
+        console.warn(`[api-client] ${res.status} from ${url}:`, detail ?? 'unknown error');
+      }
+
       throw new ApiError(
         res.status,
         path,

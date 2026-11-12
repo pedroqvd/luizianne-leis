@@ -5,6 +5,30 @@
 
 const PRODUCTION_API_URL = 'https://luizianne-leis.onrender.com';
 
+/**
+ * Valida se uma URL configurada pode ser um backend válido.
+ * Rejeita localhost, domínios do Vercel (que são apenas o frontend) e domínios antigos/inválidos.
+ */
+function isValidApiHost(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes('localhost') || trimmed.includes('127.0.0.1') || trimmed.includes('0.0.0.0')) {
+    return false;
+  }
+  // Vercel hospeda APENAS a aplicação web Next.js; todas as rotas da API rodam no NestJS no Render.
+  if (trimmed.includes('vercel.app')) {
+    return false;
+  }
+  if (trimmed.includes('luizianne-api.onrender.com') || trimmed.includes('luizianne.onrender.com')) {
+    return false;
+  }
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return false;
+  }
+  return true;
+}
+
 export function getApiBaseUrl(): string {
   // 1. Execução no Navegador (Client-Side)
   if (typeof window !== 'undefined') {
@@ -12,10 +36,10 @@ export function getApiBaseUrl(): string {
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
 
     // Se o usuário está acessando em produção (Vercel, domínio próprio, etc.),
-    // NUNCA permita apontar para localhost:8000, mesmo que a env tenha sido copiada do .env.example
+    // garante apontar para o backend no Render, rejeitando localhost ou o próprio domínio do Vercel
     if (!isLocalhost) {
       const configured = (process.env.NEXT_PUBLIC_API_URL ?? '').trim();
-      if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+      if (isValidApiHost(configured)) {
         return cleanUrl(configured);
       }
       return PRODUCTION_API_URL;
@@ -40,7 +64,7 @@ export function getApiBaseUrl(): string {
       ''
     ).trim();
 
-    if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+    if (isValidApiHost(configured)) {
       return cleanUrl(configured);
     }
     return PRODUCTION_API_URL;
