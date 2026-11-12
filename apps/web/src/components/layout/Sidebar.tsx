@@ -67,9 +67,21 @@ export function Sidebar({ isAdmin = false, allowedTabs = null }: Props) {
       {/* Brand */}
       <div className="px-5 py-6 border-b border-white/5">
         <div className="flex items-center">
-          <div className="bg-white rounded-lg px-2 py-1.5 shadow">
-            <Image src="/LOGO-LUIZIANNE-03.png" alt="Senadora Luizianne Lins" width={160} height={32} className="h-8 w-auto" />
-          </div>
+          <Link
+            href="/"
+            title="Ir para o Dashboard"
+            aria-label="Ir para o Dashboard"
+            className="group block bg-white rounded-lg px-2 py-1.5 shadow transition-all duration-200 hover:scale-[1.02] hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-sidebar-bg"
+          >
+            <Image
+              src="/LOGO-LUIZIANNE-03.png"
+              alt="Deputada Federal Luizianne"
+              width={160}
+              height={32}
+              className="h-8 w-auto transition-opacity duration-150 group-hover:opacity-95"
+              priority
+            />
+          </Link>
         </div>
       </div>
 
