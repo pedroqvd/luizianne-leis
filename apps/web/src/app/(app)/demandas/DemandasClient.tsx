@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useDeferredValue } from 'react';
 import { deleteDemanda, updateDemandaStatus, type DemandaInput } from '@/app/(app)/actions/demandas';
 import { DemandaModal, STATUSES, PRIORITIES } from './DemandaModal';
-import { Plus, Pencil, Trash2, Loader2, ClipboardList, AlertCircle, Calendar, User } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ClipboardList, AlertCircle, Calendar, User, Search, X } from 'lucide-react';
 
 interface Member { id: string; name: string | null; email: string }
 
@@ -39,12 +39,14 @@ function isOverdue(due: string | null, status: string) {
 }
 
 export function DemandasClient({ demands: initial, members }: Props) {
-  const [demands, setDemands]     = useState(initial);
-  const [activeFilter, setFilter] = useState('todas');
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing]     = useState<(DemandaInput & { id: number }) | null>(null);
-  const [errorMsg, setErrorMsg]   = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [demands, setDemands]       = useState(initial);
+  const [activeFilter, setFilter]   = useState('todas');
+  const [search, setSearch]         = useState('');
+  const deferredSearch              = useDeferredValue(search);
+  const [showModal, setShowModal]   = useState(false);
+  const [editing, setEditing]       = useState<(DemandaInput & { id: number }) | null>(null);
+  const [errorMsg, setErrorMsg]     = useState<string | null>(null);
+  const [pending, startTransition]  = useTransition();
 
   const filters = [
     { key: 'todas',         label: 'Todas',         count: demands.length },
@@ -55,7 +57,18 @@ export function DemandasClient({ demands: initial, members }: Props) {
     { key: 'arquivado',     label: 'Arquivados',      count: demands.filter(d => d.status === 'arquivado').length },
   ];
 
-  const filtered = activeFilter === 'todas' ? demands : demands.filter(d => d.status === activeFilter);
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const filtered = demands.filter(d => {
+    if (activeFilter !== 'todas' && d.status !== activeFilter) return false;
+    if (!normalizedSearch) return true;
+    return (
+      (d.title?.toLowerCase().includes(normalizedSearch)) ||
+      (d.requester_name?.toLowerCase().includes(normalizedSearch)) ||
+      (d.description?.toLowerCase().includes(normalizedSearch)) ||
+      (d.category?.toLowerCase().includes(normalizedSearch)) ||
+      (d.notes?.toLowerCase().includes(normalizedSearch))
+    );
+  });
 
   function openEdit(d: Demand) {
     setErrorMsg(null);
@@ -136,28 +149,50 @@ export function DemandasClient({ demands: initial, members }: Props) {
         })}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {filters.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-              activeFilter === f.key
-                ? 'bg-brand-700 text-white border-brand-700'
-                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {f.label} <span className="ml-1 opacity-60">{f.count}</span>
-          </button>
-        ))}
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {filters.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                activeFilter === f.key
+                  ? 'bg-brand-700 text-white border-brand-700'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {f.label} <span className="ml-1 opacity-60">{f.count}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-[240px]">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por título, solicitante, tema..."
+            className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* List */}
       {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card py-16 text-center text-slate-400 text-sm">
           <ClipboardList className="w-8 h-8 mx-auto mb-3 opacity-30" />
-          Nenhuma demanda encontrada.
+          {search ? `Nenhuma demanda encontrada para "${search}".` : 'Nenhuma demanda encontrada neste status.'}
         </div>
       ) : (
         <div className="space-y-3">

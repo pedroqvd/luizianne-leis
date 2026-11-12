@@ -67,26 +67,34 @@ export class ClassifierService {
 
     if (entries.length === 0) return 0;
 
-    const valueClauses: string[] = [];
-    const params: any[] = [];
-    let idx = 1;
+    let totalRowCount = 0;
+    const CHUNK_SIZE = 200;
 
-    for (const entry of entries) {
-      valueClauses.push(
-        `($${idx}, (SELECT id FROM categories WHERE slug = $${idx + 1}), $${idx + 2}, $${idx + 3}, now())`,
+    for (let c = 0; c < entries.length; c += CHUNK_SIZE) {
+      const chunk = entries.slice(c, c + CHUNK_SIZE);
+      const valueClauses: string[] = [];
+      const params: any[] = [];
+      let idx = 1;
+
+      for (const entry of chunk) {
+        valueClauses.push(
+          `($${idx}, (SELECT id FROM categories WHERE slug = $${idx + 1}), $${idx + 2}, $${idx + 3}, now())`,
+        );
+        params.push(entry.propId, entry.slug, entry.score, this.classifierName);
+        idx += 4;
+      }
+
+      const { rowCount } = await this.pool.query(
+        `INSERT INTO proposition_categories (proposition_id, category_id, score, classifier, classified_at)
+         VALUES ${valueClauses.join(', ')}
+         ON CONFLICT (proposition_id, category_id, classifier) DO UPDATE
+           SET score = EXCLUDED.score, classified_at = now()`,
+        params,
       );
-      params.push(entry.propId, entry.slug, entry.score, this.classifierName);
-      idx += 4;
+      totalRowCount += rowCount ?? 0;
     }
 
-    const { rowCount } = await this.pool.query(
-      `INSERT INTO proposition_categories (proposition_id, category_id, score, classifier, classified_at)
-       VALUES ${valueClauses.join(', ')}
-       ON CONFLICT (proposition_id, category_id, classifier) DO UPDATE
-         SET score = EXCLUDED.score, classified_at = now()`,
-      params,
-    );
-    return rowCount ?? 0;
+    return totalRowCount;
   }
 
   async classifyAndPersist(propositionId: number, text: string): Promise<number> {
