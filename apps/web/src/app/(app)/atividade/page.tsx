@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 import Link from 'next/link';
-import { Activity, Bell, FileText, Vote, UserCheck } from 'lucide-react';
+import { Activity, Bell, FileText, Vote, UserCheck, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +14,12 @@ interface NotificationRow {
 }
 
 const EVENT_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  NEW_PROPOSITION: { label: 'Nova proposição',    icon: FileText,  color: 'bg-blue-50 text-blue-600 border-blue-100' },
-  STATUS_CHANGED:  { label: 'Status atualizado',  icon: Activity,  color: 'bg-amber-50 text-amber-600 border-amber-100' },
-  NEW_VOTE:        { label: 'Novo voto',           icon: Vote,      color: 'bg-green-50 text-green-600 border-green-100' },
-  NEW_RAPPORTEUR:  { label: 'Nova relatoria',      icon: UserCheck, color: 'bg-purple-50 text-purple-600 border-purple-100' },
+  NEW_PROPOSITION: { label: 'Nova proposição',    icon: FileText,      color: 'bg-blue-50 text-blue-600 border-blue-100' },
+  STATUS_CHANGED:  { label: 'Status atualizado',  icon: Activity,      color: 'bg-amber-50 text-amber-600 border-amber-100' },
+  NEW_VOTE:        { label: 'Novo voto',           icon: Vote,          color: 'bg-green-50 text-green-600 border-green-100' },
+  NEW_RAPPORTEUR:  { label: 'Nova relatoria',      icon: UserCheck,     color: 'bg-purple-50 text-purple-600 border-purple-100' },
+  DEPUTY_ABSENT:   { label: 'Ausência registrada', icon: AlertTriangle, color: 'bg-red-50 text-red-600 border-red-100' },
+  LAW_APPROVED:    { label: 'Lei aprovada',        icon: CheckCircle,   color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
 };
 
 export default async function AtividadePage() {
