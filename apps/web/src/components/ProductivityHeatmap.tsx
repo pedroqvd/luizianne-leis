@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 interface Props {
   data: { day: string; total: number }[];
 }
 
-const WEEKS = 576 // ~11 years of history (covers since 2015);
+type RangeOption = '1y' | '4y' | 'all';
+
 const DAYS = 7;
 const LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -21,6 +22,10 @@ function intensity(total: number, max: number): string {
 }
 
 export function ProductivityHeatmap({ data }: Props) {
+  const [range, setRange] = useState<RangeOption>('1y');
+
+  const weeks = range === '1y' ? 52 : range === '4y' ? 208 : 576;
+
   const { grid, monthLabels, max } = useMemo(() => {
     const map = new Map<string, number>();
     for (const { day, total } of data) map.set(day, total);
@@ -28,15 +33,15 @@ export function ProductivityHeatmap({ data }: Props) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // start from Sunday WEEKS weeks ago
+    // start from Sunday `weeks` weeks ago
     const start = new Date(today);
-    start.setDate(start.getDate() - today.getDay() - (WEEKS - 1) * 7);
+    start.setDate(start.getDate() - today.getDay() - (weeks - 1) * 7);
 
     const grid: { date: string; total: number; future: boolean }[][] = [];
     const monthLabels: { label: string; col: number }[] = [];
     let lastMonth = -1;
 
-    for (let w = 0; w < WEEKS; w++) {
+    for (let w = 0; w < weeks; w++) {
       const col: { date: string; total: number; future: boolean }[] = [];
       for (let d = 0; d < DAYS; d++) {
         const cur = new Date(start);
@@ -54,23 +59,74 @@ export function ProductivityHeatmap({ data }: Props) {
 
     const max = Math.max(...data.map((d) => d.total), 1);
     return { grid, monthLabels, max };
-  }, [data]);
+  }, [data, weeks]);
 
-  const total = useMemo(
+  const totalPeriod = useMemo(
     () => grid.flat().reduce((s, cell) => s + cell.total, 0),
     [grid],
   );
 
+  const rangeDescription =
+    range === '1y'
+      ? 'últimos 12 meses (52 semanas)'
+      : range === '4y'
+      ? 'última legislatura (4 anos)'
+      : 'histórico completo (desde 2015)';
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400">{total} proposições (histórico completo)</span>
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-          <span>Menos</span>
-          {['bg-slate-100', 'bg-brand-200', 'bg-brand-400', 'bg-brand-600', 'bg-brand-700'].map((c) => (
-            <span key={c} className={`w-3 h-3 rounded-sm inline-block ${c}`} />
-          ))}
-          <span>Mais</span>
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 font-medium">
+            {totalPeriod} proposições ({rangeDescription})
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Time range selector */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-[11px]">
+            <button
+              type="button"
+              onClick={() => setRange('1y')}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                range === '1y'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              1 Ano
+            </button>
+            <button
+              type="button"
+              onClick={() => setRange('4y')}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                range === '4y'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              4 Anos
+            </button>
+            <button
+              type="button"
+              onClick={() => setRange('all')}
+              className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                range === 'all'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Completo
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span>Menos</span>
+            {['bg-slate-100', 'bg-brand-200', 'bg-brand-400', 'bg-brand-600', 'bg-brand-700'].map((c) => (
+              <span key={c} className={`w-3 h-3 rounded-sm inline-block ${c}`} />
+            ))}
+            <span>Mais</span>
+          </div>
         </div>
       </div>
 

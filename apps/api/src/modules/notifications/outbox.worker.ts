@@ -25,13 +25,32 @@ export class OutboxWorker {
       // Wrap in a transaction so FOR UPDATE SKIP LOCKED holds the row locks
       // until COMMIT, preventing concurrent workers from claiming the same events.
       await client.query('BEGIN');
-      const { rows } = await client.query(
-        `SELECT * FROM outbox_events
-         WHERE processed_at IS NULL
-         ORDER BY id ASC
-         LIMIT 50
-         FOR UPDATE SKIP LOCKED`,
-      );
+      let rows: any[] = [];
+      try {
+        const res = await client.query(
+          `SELECT * FROM outbox_events
+           WHERE processed_at IS NULL
+             AND (attempts IS NULL OR attempts < 5)
+           ORDER BY id ASC
+           LIMIT 50
+           FOR UPDATE SKIP LOCKED`,
+        );
+        rows = res.rows;
+      } catch (err: any) {
+        if (err.code === '42703') {
+          // Pre-migration 023 fallback if attempts column does not exist yet
+          const res = await client.query(
+            `SELECT * FROM outbox_events
+             WHERE processed_at IS NULL
+             ORDER BY id ASC
+             LIMIT 50
+             FOR UPDATE SKIP LOCKED`,
+          );
+          rows = res.rows;
+        } else {
+          throw err;
+        }
+      }
 
       let dispatched = 0;
       for (const row of rows) {
@@ -49,8 +68,20 @@ export class OutboxWorker {
           );
           dispatched++;
         } catch (e: any) {
-          this.logger.error(`Failed to dispatch event ${row.id} (type=${row.type}): ${e.message} — will retry`);
-          // processed_at stays NULL → retried on next tick
+          const nextAttempt = (row.attempts || 0) + 1;
+          const errMsg = String(e.message || e).slice(0, 500);
+          if (nextAttempt >= 5) {
+            this.logger.warn(`Event ${row.id} (type=${row.type}) reached 5 failed attempts — moving to dead-letter: ${errMsg}`);
+          } else {
+            this.logger.error(`Failed to dispatch event ${row.id} (type=${row.type}, attempt=${nextAttempt}/5): ${errMsg}`);
+          }
+          await client.query(
+            `UPDATE outbox_events
+             SET attempts = COALESCE(attempts, 0) + 1,
+                 last_error = $2
+             WHERE id = $1`,
+            [row.id, errMsg],
+          ).catch(() => undefined);
         }
       }
       await client.query('COMMIT');

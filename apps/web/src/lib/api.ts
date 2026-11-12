@@ -1,5 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
-
 export { getApiBaseUrl, buildEndpointUrl } from './api-url';
 import { buildEndpointUrl } from './api-url';
 
@@ -27,9 +25,17 @@ export class ApiError extends Error {
 
 async function getAccessToken(): Promise<string | null> {
   try {
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    if (typeof window !== 'undefined') {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token ?? null;
+    } else {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token ?? null;
+    }
   } catch {
     return null;
   }
